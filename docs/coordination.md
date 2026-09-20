@@ -4,7 +4,7 @@
 
 Propose an experiment → peer-review controls → establish a runnable recipe → reserve compute → pilot on development data → freeze the confirmatory protocol → run → independently check → record continue/revise/stop/transfer.
 
-Use a task branch and PR per coherent change. Freeze the scorer/generator version in the run manifest. Shared evaluation changes require review by the other researcher and cannot retroactively replace scores under the old version.
+Use a task branch and Forgejo PR per coherent change; the canonical workflow is in [forgejo-workflow.md](forgejo-workflow.md). Freeze the scorer/generator version in the run manifest. Shared evaluation changes require review by the other researcher and cannot retroactively replace scores under the old version.
 
 ## Initial queue
 
