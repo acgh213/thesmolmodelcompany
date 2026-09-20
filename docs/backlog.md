@@ -7,7 +7,7 @@ Status: proposed work packages, not claims of implementation or active assignmen
 | ~~R00~~ | Eido | Read-only host and contention audit | None | **Done** (issue #3). Measured envelope in [decision 0002](decisions/0002-measured-host-envelope.md) |
 | ~~R01~~ | Research A | Baseline and recurrence candidate source audit | None | **Done** (PR #6). Baseline: Qwen2.5-1.5B `8faed761`; see [checkpoint-shortlist.md](checkpoint-shortlist.md) |
 | R02 | Eido | Minimal reproducible baseline environment and smoke | R00, R01, implementation plan | Actual model load/inference; resource log; termination; exact environment and command |
-| R03 | Research B; A reviews | Task generators, scorer, and split protocol | Design and implementation plan | Independent ground-truth validation, duplicate/shortcut audit, held-out access plan |
+| R03 | Research B; A reviews | [Task generators, scorer, and split protocol](R03-generator-scorer-split-protocol.md) — specification in review | Design and implementation plan | Independent ground-truth validation, duplicate/shortcut audit, held-out access plan |
 | R04 | Research B; A reviews | E01 representation/skills pilot and frozen protocol | R02, R03 | Factorial comparisons, costs, per-item errors, final sample-size rationale |
 | R05 | Research A; B reviews | E02 recurrence **mechanism probe** recipe and pilot | R02, R03 | Parameter/compute controls, extrapolation splits, stability, measured run estimate. Practical probe closed per decision 0002 |
 | R06 | Research B; A reviews | E03 adaptation protocol | R04/R05 evidence review | Episode isolation, fair support information, bounded update/reset recipe |

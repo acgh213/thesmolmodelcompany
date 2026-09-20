@@ -28,4 +28,4 @@ Stop or revise if updates underperform more inference search at the same cost, b
 
 ## Recipe decisions before execution
 
-R06 chooses the base checkpoint, trainable subset, update loss, optimizer, maximum steps, reset verification, support/query counts, and final statistical protocol. The large benchmark gains in cited prior work are motivation, not expected outcomes for this project.
+R03 proposes the shared generator/scorer/split contract in [its protocol](../docs/R03-generator-scorer-split-protocol.md), pending Research A review. R06 chooses the base checkpoint, trainable subset, update loss, optimizer, maximum steps, reset verification, support/query counts, and final statistical protocol. The large benchmark gains in cited prior work are motivation, not expected outcomes for this project.
