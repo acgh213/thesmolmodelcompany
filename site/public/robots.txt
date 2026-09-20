@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://thesmolmodel.co/sitemap-index.xml

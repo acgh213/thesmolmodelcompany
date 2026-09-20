@@ -2,6 +2,8 @@
 
 Research small models that reason, compose skills, and adapt to unfamiliar tasks under practical local-compute limits. Transfer successful mechanisms into a useful local assistant.
 
+**Public site:** [thesmolmodel.co](https://thesmolmodel.co)
+
 **Primary goal:** demonstrate stronger reasoning and adaptation, with evidence about where the improvement comes from. **Transfer goal:** preserve those gains in an everyday local system.
 
 Status: research design prepared for Cassie's review. No implementation, model download, training, benchmark result, or rental is included in this change. The research direction is agreed; the written design and numerical experiment budgets are proposals.
