@@ -12,6 +12,8 @@ Mechanism probe: train a small recurrent model and ordinary transformer controls
 
 Practical probe: evaluate an existing recurrent language-model checkpoint only if its official runtime fits Eido's measured resources. Compare to an ordinary local checkpoint, while disclosing uncontrolled pretraining and tokenizer differences. This study cannot independently prove an architectural advantage.
 
+**Status: closed on the current host.** [Decision 0002](../docs/decisions/0002-measured-host-envelope.md) records a 1.93 GiB deficit at `num_steps=16` and 4.51 GiB at `num_steps=32` against measured free VRAM, before activations. E02 proceeds as the mechanism probe only. Re-open only if measured headroom changes and a bounded smoke test proves load plus one inference batch.
+
 ## Comparisons
 
 1. Parameter-matched recurrence versus ordinary depth: extra computation is allowed but measured.

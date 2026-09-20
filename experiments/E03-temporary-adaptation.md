@@ -14,6 +14,8 @@ Each episode supplies a small labeled support set and separate unlabeled queries
 
 Same base checkpoint with support examples in context; retrieval of training examples; small bounded adapter update; bounded rule/program search. Match permitted evidence and report accuracy-versus-total-time curves. Include an update-disabled control using the identical prompt and support data.
 
+The update condition **must be parameter-efficient** (adapters/LoRA or an equivalently bounded trainable subset). Per [decision 0002](../docs/decisions/0002-measured-host-envelope.md), the measured host has ~7.33 GiB free VRAM, and full-parameter AdamW on the selected 1.5B baseline needs roughly 20.1 GiB. A full-parameter update does not fit and must not be planned for this host.
+
 Reset model/adapters, optimizer, retrieval writes, caches, and persistent state between independent episodes. Capture hashes/checks sufficient to establish reset. Stop an episode on divergence or budget exhaustion and count the failure. Continual learning is a different protocol.
 
 ## Measurements
