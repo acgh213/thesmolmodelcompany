@@ -31,3 +31,4 @@ Existing small-model checkpoints are practical starting points. Tiny controlled 
 ## Reproducibility and licensing
 
 Record exact code, model, tokenizer, dataset, environment, and hardware identities with every run. Store large weights and datasets outside Git; commit manifests and evidence references. The repository's MIT license does not relicense third-party weights, datasets, or dependencies.
+test
