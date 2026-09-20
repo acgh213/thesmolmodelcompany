@@ -15,7 +15,7 @@ Primary execution target: Eido's Windows desktop, using WSL2 where the selected 
 | WSL2 | Ubuntu 24.04.4, kernel 5.15.167.4; GPU passthrough verified working |
 | PyTorch | Not present in any checked interpreter |
 
-Plan against **7.33 GiB, not 10 GiB**. Per [decision 0002](decisions/0002-measured-host-envelope.md) this host supports inference and parameter-efficient adaptation; full-parameter training above roughly 562M parameters does not fit. Native Windows support is a measured deployment goal, not an assumption about Linux research kernels.
+Plan against **7.33 GiB, not 10 GiB**. Per [decision 0002](decisions/0002-measured-host-envelope.md) this host supports inference and parameter-efficient adaptation, not full fine-tuning. The ~562M-parameter figure there is an optimistic state-only screening bound for ruling models out, not a clearance threshold: a smaller model still needs a measured smoke test. Native Windows support is a measured deployment goal, not an assumption about Linux research kernels.
 
 Per-process GPU memory reports as `N/A` under WDDM, so model residency cannot be established programmatically. A human must confirm LM Studio is not holding a model before a reserved run.
 

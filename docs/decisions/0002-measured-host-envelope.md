@@ -33,9 +33,11 @@ The usable figure is **~7.33 GiB free VRAM**, not 10 GiB. About 2.6 GiB is consu
 | `num_steps=16` | 9.26 GiB | 7.33 GiB | **1.93 GiB deficit** |
 | `num_steps=32` | 11.84 GiB | 7.33 GiB | **4.51 GiB deficit** |
 
-Before activations and allocator overhead. Useful recurrent depths do not fit. E02 proceeds as the controlled mechanism probe only.
+Before activations and allocator overhead. **Under these assumptions** — BF16 weights and a full-retention recurrent cache at 2,048 tokens, batch 1 — useful recurrent depths do not fit. E02 proceeds as the controlled mechanism probe only.
 
-This is a resource verdict about this host, not a claim that the architecture is unsound or that Huginn cannot run elsewhere. Re-open if measured headroom changes materially, and only via a bounded smoke test proving load plus one inference batch at a declared context and step count.
+This is a resource verdict about this host under the assessed assumptions, not a claim that the architecture is unsound or that Huginn cannot run elsewhere. The cache figure is an upper bound assuming every recurrent iteration is retained; the model card documents cache-sharing modes whose real memory behavior is unmeasured.
+
+Re-open if **any** of the following change: measured free VRAM headroom, cache policy (sharing modes rather than full retention), runtime (a different serving stack with different cache handling), or precision (a validated lower-precision path). In every case, re-opening requires a bounded smoke test proving load plus one inference batch at a declared context and step count — a changed assumption alone is not clearance.
 
 **2. Full-parameter training is out of scope for shortlist-scale checkpoints.**
 
@@ -45,9 +47,11 @@ Full-parameter AdamW at 14 bytes/parameter (BF16 gradient, FP32 master weights, 
 |---|---|---|
 | Qwen2.5-1.5B (recommended baseline) | ~20.1 GiB | Infeasible |
 | Qwen2.5-0.5B | ~6.4 GiB | Marginal; no room for activations |
-| Ceiling at 14 B/param | — | **~562M parameters, before activations** |
+| State-only screening bound at 14 B/param | — | **~562M parameters** |
 
 **This host is an inference and parameter-efficient-adaptation machine, not a full-fine-tuning machine.**
+
+The 562M figure is an **optimistic screening bound, not a practical ceiling.** The 14 B/param figure covers BF16 gradients plus FP32 master weights and two FP32 moments, and excludes activations, allocator and framework overhead, dataloader state, and — depending on the AMP representation — the resident BF16 weights themselves. It is therefore sound for *ruling models out* (Qwen2.5-1.5B is safely excluded) but it must not be read as "anything below 562M is cleared." A model under that bound still requires a measured smoke test before any training run is planned against it.
 
 Consequences:
 
