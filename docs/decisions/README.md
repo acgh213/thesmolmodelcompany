@@ -12,3 +12,4 @@ deployment target must be recorded here.
 |---|---|---|
 | [0001](0001-repository-governance.md) | Public repository, enforced branch protection, named research roles | 2026-09-20 |
 | [0002](0002-measured-host-envelope.md) | Measured host envelope closes the E02 practical probe and full-parameter training | 2026-09-20 |
+| [0003](0003-forgejo-canonical-collaboration.md) | Forgejo canonical collaboration forge; GitHub public mirror | 2026-09-20 |

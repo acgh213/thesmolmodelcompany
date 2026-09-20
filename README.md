@@ -6,6 +6,10 @@ Research small models that reason, compose skills, and adapt to unfamiliar tasks
 
 Status: research design prepared for Cassie's review. No implementation, model download, training, benchmark result, or rental is included in this change. The research direction is agreed; the written design and numerical experiment budgets are proposals.
 
+## Collaboration
+
+The canonical collaboration forge is [Forgejo](https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany): active issues, branches, pull requests, reviews, and merges happen there. [GitHub](https://github.com/acgh213/thesmolmodelcompany) remains a public mirror for discovery, not the active task queue or review surface. Read the [Forgejo workflow](docs/forgejo-workflow.md) and [decision 0003](docs/decisions/0003-forgejo-canonical-collaboration.md) before contributing.
+
 ## Start here
 
 1. Read [AGENTS.md](AGENTS.md).
