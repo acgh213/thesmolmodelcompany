@@ -24,10 +24,24 @@ While preparing the repository we established two facts:
 cost, and the documents were already written for an outside reader.
 
 **Branch protection on `main`.** Direct pushes are blocked. Changes arrive by
-pull request with at least one approving review, the `documentation integrity`
-status check passing on the exact head commit, conversation resolution required,
-stale approvals dismissed on new commits, and force-push and deletion disabled.
-These rules apply to administrators as well.
+pull request with the `documentation integrity` status check passing on the
+exact head commit, branches up to date before merge, conversation resolution
+required, linear history required, stale approvals dismissed on new commits, and
+force-push and deletion disabled. **Administrator enforcement is on.**
+
+Administrator enforcement is called out because the first configuration set
+`enforce_admins: false`, and a verification push to `main` from the owner
+account **succeeded** — every rule above was bypassed. Since all three agents
+act under that single account, protection was decorative until this was fixed.
+It was found only by attempting the push rather than trusting the API response,
+and the test commit was reverted. A protection rule that has not been tested
+against an actual push should be assumed not to work.
+
+Required approving reviews are set to **0**. GitHub will not count an approval
+from the author, and with one identity behind all three agents every PR would
+otherwise be unmergeable. The review requirement in `docs/coordination.md` is
+therefore procedural, not enforced. Raising this to 1 is the single change that
+would make separation of duties real, and it requires separate accounts.
 
 **Role assignment.**
 
