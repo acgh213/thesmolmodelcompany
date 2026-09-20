@@ -1,0 +1,24 @@
+# Code owners — separation of duties
+#
+# Enforcement note: CODEOWNERS is advisory unless branch protection requires
+# code-owner review. See docs/decisions/0001-repository-governance.md for what
+# is mechanically enforced versus what is process-only.
+#
+# The intent (docs/coordination.md): the proposer of an experiment must not be
+# the sole approver of the scorer, generator or split that judges it.
+
+# Shared evaluation contract — Research B owns, Research A reviews.
+/docs/evaluation.md          @acgh213
+/src/scorer/                 @acgh213
+/src/generators/             @acgh213
+
+# Mechanism / architecture track — Research A owns.
+/experiments/E02-recurrent-computation.md  @acgh213
+
+# Compute and environment policy — Eido owns.
+/docs/compute.md             @acgh213
+
+# Governance and protocol decisions — Cassie decides.
+/docs/decisions/             @acgh213
+/AGENTS.md                   @acgh213
+/agents/README.md            @acgh213

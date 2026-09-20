@@ -24,7 +24,7 @@ Status: research design prepared for Cassie's review. No implementation, model d
 
 Maintain at most one main GPU experiment and one CPU/evaluation task concurrently. E03 starts after the first two tracks have produced baseline evidence and a capacity review.
 
-The [research map](docs/research-map.md) records additional directions and primary sources. The [results ledger](docs/results.md) currently contains no experimental findings.
+The [research map](docs/research-map.md) records additional directions and primary sources. The [results ledger](docs/results.md) contains no experimental findings and is generated from run reports under [results/](results/README.md). Governance and protocol changes are recorded in [decision records](docs/decisions/README.md).
 
 Existing small-model checkpoints are practical starting points. Tiny controlled training runs test mechanisms. Cactus/Needle is an optional comparison, and the PSTV is an optional later target; neither defines this project's scope.
 

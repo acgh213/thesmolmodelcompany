@@ -1,0 +1,57 @@
+# Large artifacts never enter Git. Commit manifests and evidence references instead.
+# See docs/coordination.md ("Proposed artifact layout") for where these belong.
+
+# Model weights, tokenizers, adapters, quantized packs
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.bin
+*.gguf
+*.onnx
+*.tflite
+*.npz
+*.h5
+
+# Datasets and generated task corpora
+*.parquet
+*.arrow
+data/
+datasets/
+!data/**/*.md
+!data/**/manifest.json
+
+# Run outputs: keep summaries/manifests, exclude raw predictions and logs
+results/**/raw/
+results/**/predictions/
+results/**/*.jsonl
+results/**/*.log
+!results/**/report.md
+!results/**/manifest.json
+
+# Caches
+.cache/
+cache/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.ipynb_checkpoints/
+hf_cache/
+wandb/
+
+# Environments
+.venv/
+venv/
+env/
+.env
+.env.*
+!.env.example
+
+# Editors / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+*.swp
