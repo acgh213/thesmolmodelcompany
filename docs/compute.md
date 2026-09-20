@@ -2,7 +2,22 @@
 
 ## Targets
 
-Primary execution target: Eido's Windows desktop, using WSL2 where the selected software supports it. Historical report: RTX 3080 10 GiB, Ryzen 3700X, roughly 32 GiB RAM. Recheck rather than treating past free disk, free VRAM, or package availability as current facts. Native Windows support is a measured deployment goal, not an assumption about Linux research kernels.
+Primary execution target: Eido's Windows desktop, using WSL2 where the selected software supports it.
+
+**Measured 2026-09-20 (R00, issue #3)** — these replace the previous historical figures. Re-audit before any reserved run; they are a snapshot of a daily-driver desktop and they move.
+
+| Quantity | Measured |
+|---|---|
+| GPU | RTX 3080, driver 616.92, CUDA UMD 13.4 |
+| Free VRAM | **7.33 GiB** (7,506 MiB, WSL sample); ~2.6 GiB held by the normal desktop |
+| Available RAM | **11.73 GiB** of 31.93 GiB total |
+| CPU | Ryzen 7 3700X, 8 physical / 16 logical |
+| WSL2 | Ubuntu 24.04.4, kernel 5.15.167.4; GPU passthrough verified working |
+| PyTorch | Not present in any checked interpreter |
+
+Plan against **7.33 GiB, not 10 GiB**. Per [decision 0002](decisions/0002-measured-host-envelope.md) this host supports inference and parameter-efficient adaptation, not full fine-tuning. The ~562M-parameter figure there is an optimistic state-only screening bound for ruling models out, not a clearance threshold: a smaller model still needs a measured smoke test. Native Windows support is a measured deployment goal, not an assumption about Linux research kernels.
+
+Per-process GPU memory reports as `N/A` under WDDM, so model residency cannot be established programmatically. A human must confirm LM Studio is not holding a model before a reserved run.
 
 Cloud is available as an option, with an explicit total spending cap and termination mechanism. No paid resources have been provisioned and no rental budget has been specified.
 
