@@ -11,7 +11,7 @@ Status: proposed work packages, not claims of implementation or active assignmen
 | R04 | Research B; A reviews | E01 representation/skills pilot and frozen protocol | R02, R03 | Factorial comparisons, costs, per-item errors, final sample-size rationale |
 | R05 | Research A; B reviews | E02 recurrence recipe and pilot | R02, R03 | Parameter/compute controls, extrapolation splits, stability, measured run estimate |
 | R06 | Research B; A reviews | E03 adaptation protocol | R04/R05 evidence review | Episode isolation, fair support information, bounded update/reset recipe |
-| R07 | Other researcher + Eido | Independent reproduction of strongest result | A completed controlled experiment | Manifest-based rerun; difference analysis; same claim or documented contradiction |
+| R07 | Other researcher + Eido | Independent reproduction of strongest result | A completed controlled experiment | Manifest-based rerun in a rebuilt environment per coordination.md; difference analysis; same claim or documented contradiction |
 | R08 | Research B + Eido; A reviews | Transfer to local assistant tasks | R07 | Useful completion improvement on held-out practical tasks; full local footprint |
 
 ## Decisions assigned before implementation

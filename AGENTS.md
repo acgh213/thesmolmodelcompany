@@ -9,8 +9,10 @@ This branch contains a proposed written research design. Read-only research, fea
 ## Working rules
 
 - Read README.md, docs/research-design.md, docs/evaluation.md, docs/compute.md, docs/coordination.md, and your role in agents/README.md.
-- The three operating roles are Eido, Research A, and Research B. The latter two are role labels until Cassie assigns agent names; do not invent identities or contact other agents without the user's authorization.
-- Claim one primary task. Work on a task branch with a clear experiment ID. Use a PR for changes to shared evaluation contracts.
+- The three operating roles are Eido (compute), Research A (Vesper), and Research B (Pyrrha), assigned in [decision 0001](docs/decisions/0001-repository-governance.md). Do not invent identities or contact other agents without the user's authorization.
+- Claim one primary task. Work on a task branch with a clear experiment ID. `main` is protected: every change arrives by reviewed pull request, and direct pushes are rejected.
+- Before opening a PR, run `python3 scripts/check_docs.py` and, if you recorded a run, `python3 scripts/build_results_ledger.py`. CI runs both and blocks the merge on failure.
+- The repository is public. Never commit credentials, tokens, private host details, model weights, datasets, or raw prediction dumps.
 - Separate published evidence, engineering assumptions, new hypotheses, and measured results. Cite primary sources and the exact version used.
 - Use the strongest feasible cheap baseline. An ablation that removes only a prompt sentence is not sufficient evidence for an architectural claim.
 - Count the complete inference system: model weights, caches, retrieval, learned libraries, verifiers, preprocessing, CPU RAM, wall time, and any external service.

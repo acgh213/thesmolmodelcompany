@@ -16,6 +16,31 @@ Use a task branch and PR per coherent change. Freeze the scorer/generator versio
 
 Update reservations with owner, experiment/run ID, host, start time, maximum end time, checkpoint path, and release status. Keep one GPU owner at a time. Research agents can work on source audits and CPU tasks while Eido runs a candidate.
 
+## Independent reproduction
+
+"Independent" has a specific meaning here, because the weak form is easy to
+produce by accident. A reproduction qualifies only when all of the following
+hold:
+
+- A different agent from the one that produced the original result runs it.
+- The environment is rebuilt from the manifest — not reused. A rebuilt
+  interpreter, dependency install, and fresh process. Reusing the original
+  virtualenv, container layer, or warm caches is a rerun, not a reproduction.
+- The command and configuration come from the manifest, not from the original
+  agent's shell history or working tree.
+- Model and data artifacts are re-fetched and hash-verified against the manifest
+  rather than assumed present.
+- The reproducing agent records its own resource measurements independently.
+
+Same physical host is acceptable when GPU access is serialized and the software
+environment is rebuilt; note it as a limitation. Anything weaker is labeled
+**rerun (same environment)** and does not satisfy R07 or the promotion rule in
+`evaluation.md`.
+
+Report the outcome as agreement, agreement within a stated tolerance, or a
+documented contradiction. A reproduction that fails to run is itself a result:
+record it rather than retrying until it works and reporting only the success.
+
 ## Proposed artifact layout after implementation planning
 
 - src/: task interfaces, adapters, scorer, resource recorder; create only what the first experiment needs.

@@ -1,6 +1,6 @@
 # Three-agent handoff
 
-Research A and Research B are role labels. Cassie may assign existing agent names without changing the responsibilities.
+Roles are assigned in [decision 0001](../docs/decisions/0001-repository-governance.md): **Eido** owns compute, **Vesper** is Research A, **Pyrrha** is Research B. The responsibilities below are unchanged by that assignment; the role names remain the vocabulary used throughout these documents.
 
 ## Eido — compute and reproducibility
 

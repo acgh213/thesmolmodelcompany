@@ -1,0 +1,26 @@
+name: checks
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  docs:
+    name: documentation integrity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Check Markdown links, newlines, placeholders
+        run: python3 scripts/check_docs.py
+
+      - name: Check results ledger is regenerated from run reports
+        run: python3 scripts/build_results_ledger.py --check
