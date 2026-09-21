@@ -130,60 +130,11 @@ The exact resolved set, including transitive dependencies, is captured with
 `pip freeze` into the run directory at execution time. That freeze output, not
 this table, is the authoritative dependency record for reproduction.
 
-## Exact commands
+## Review boundary
 
-Run from the repository root inside WSL. Commands are listed in execution
-order and are the complete set; nothing is assumed to be already present.
+This PR is a preflight design only. It records the pinned environment, artifact identity and hashing requirements, persistence decision, clean-state expectations, and the manifest fields that a later authorized execution procedure must implement. It does not contain executable artifact retrieval, model smoke, or release-asset transport commands.
 
-```bash
-# 1. environment identity, recorded before anything is built
-uname -r
-cat /etc/os-release
-nvidia-smi --query-gpu=name,driver_version,memory.total,memory.used,memory.free \
-  --format=csv,noheader,nounits
-free -m
-python3 --version
-
-# 2. build the dedicated environment
-cd ~/ml/projects/smolmodelco
-python3 -m venv .venv-r02
-. .venv-r02/bin/activate
-python -m pip install --upgrade pip
-
-# 3. install pinned dependencies
-python -m pip install --index-url https://download.pytorch.org/whl/cu126 \
-  torch==2.14.0+cu126
-python -m pip install \
-  transformers==5.17.0 tokenizers==0.23.2 safetensors==0.8.0 \
-  accelerate==1.15.0 huggingface-hub==1.32.0 numpy==2.5.3
-
-# 4. capture the authoritative dependency record
-python -m pip freeze > results/R02/<run-id>/pip-freeze.txt
-
-# 5. retrieve the pinned model by commit SHA and hash every file locally
-python configs/r02_fetch_and_hash.py \
-  --repo-id Qwen/Qwen2.5-1.5B \
-  --revision 8faed761d45a263340a0528343f099c05c9a4323 \
-  --out results/R02/<run-id>/artifact-hashes.json
-
-# 6. the smoke itself: load, one inference, clean termination
-python configs/r02_smoke.py \
-  --repo-id Qwen/Qwen2.5-1.5B \
-  --revision 8faed761d45a263340a0528343f099c05c9a4323 \
-  --dtype bfloat16 \
-  --device cuda:0 \
-  --max-new-tokens 32 \
-  --seed 0 \
-  --run-dir results/R02/<run-id>
-
-# 7. environment identity again, after the run
-nvidia-smi --query-gpu=memory.used,memory.free --format=csv,noheader,nounits
-free -m
-```
-
-The two scripts referenced in steps 5 and 6 are part of the run change, not of
-this preflight. They are named here so the reviewer can see the full shape of
-what is being authorized.
+A separate executable-procedure issue/PR must be reviewed and approved before any package installation, artifact retrieval, model loading, inference, GPU reservation, or live persistence check. That follow-up must bind its implementation and tests to this recipe without treating this design review as execution authorization.
 
 ## Clean state and cold cache
 
@@ -291,33 +242,9 @@ to be recorded rather than retried away:
 
 ## Model-free preflight helpers
 
-The repository includes `scripts/r02_preflight.py`, with no model imports and no invocation of artifact retrieval. `sha256_stream(path)` reads fixed-size chunks and returns a SHA-256 digest. `persistence_round_trip(source, storage_dir)` writes a probe into a run-local persistence directory, reads and hashes it back, compares byte count and digest, and removes the persisted copy in a `finally` block. `build_manifest()` supplies a scaffold in which every not-yet-measured value is explicitly `UNSET`; it includes peak VRAM, peak RAM, stored and loaded footprint, and cold-load/warm-inference timing fields. `fetch_and_hash` is an importable seam only and is not invoked by this preflight.
+The repository retains only the model-free `scripts/r02_preflight.py` helpers: streaming SHA-256, an explicit-`UNSET` manifest scaffold, and a local test-only persistence round-trip. These helpers do not retrieve artifacts, execute a model, contact Forgejo, or claim live persistence. Their tests are limited to pure local behavior.
 
-The model-free checks are run with:
-
-```bash
-python3 -m unittest tests.test_r02_preflight -v
-python3 -m unittest discover -s tests -v
-python3 scripts/check_docs.py
-```
-
-The eventual run binds the helpers to the exact commands above and writes its manifest under `results/R02/<run-id>/manifest.json`. The run directory is fresh per run; `.venv-r02` is recreated rather than reused; model cache state is recorded as cold or warm and is never silently treated as equivalent. Peak VRAM is sampled from `nvidia-smi` immediately before/after and during the run when available; peak host RAM is recorded from WSL `free -m`; stored footprint is the on-disk artifact bytes and loaded footprint is the resident loaded model representation, reported separately. Cold-load, warm-inference, and total wall timing are recorded independently.
-
-Bootstrap resolution means only that the pinned environment and upstream revision resolve during the first authorized setup. It is not evidence of model quality or a reconstruction. Later independent reconstruction must start from this recipe, rebuild the clean environment, re-fetch the pinned revision, recompute hashes, and compare its manifest independently.
-
-## Reviewed implementation boundaries
-
-The named commands now have model-free, fail-closed entry points: `configs/r02_fetch_and_hash.py` exposes `fetch_and_hash(fetch, repo_id, revision, out)` with an injected fetch transport and hashes every returned file; its CLI refuses to retrieve artifacts without an explicitly authorized transport. `configs/r02_smoke.py` exposes `create_run_directory()` (fresh-only) and `write_manifest()` while its CLI refuses model execution without an explicitly authorized run. These scripts are scaffolds and do not claim bootstrap resolution, model loading, inference, or measured resource values.
-
-`python3 scripts/r02_release.py` is represented by `scripts/r02_release.py`: `release_round_trip(source, transport)` creates a release, uploads the probe, reads an asset URL back through a separate transport method, downloads and hashes the bytes, compares size and digest, and deletes the release in `finally`. The Forgejo transport is intentionally injectable; the unit test uses a local fake and makes no network or credential call. Live Forgejo persistence remains a separate review gate and is not claimed by this branch.
-
-A run directory is created only by `create_run_directory(results_root, run_id)` and fails if the directory already exists. `write_manifest()` records explicit `UNSET` fields until an authorized run supplies measurements. Peak VRAM/RAM sampling is a documented future measurement boundary, not an implemented or executed claim: the smoke entry point refuses execution, and no GPU, model, or artifact work was performed.
-
-The pure boundary tests are:
-
-```bash
-python3 -m unittest tests.test_r02_boundaries -v
-```
+The executable fetch/hash, smoke, and Forgejo-release procedures are intentionally out of scope for this PR and must be introduced under a separate review gate.
 
 ## What this recipe does not establish
 
