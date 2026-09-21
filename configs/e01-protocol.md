@@ -46,6 +46,40 @@ JSON array of result records with no surrounding prose. Decoding is greedy:
 no retries. Invalid JSON, a non-array, a missing output, or an exact mismatch is
 incorrect and receives an explicit error class.
 
+## Prompt and runner (frozen with this revision)
+
+This revision fixed the episodes, the scorer and the decoding limits but left the
+prompt unspecified. Issue #24 closes that gap. The renderer is `e01-prompt-v1`, and
+the complete rendered prompt is four parts concatenated with nothing between them:
+
+1. the instruction text, byte for byte:
+   `You are a deterministic JSON transformation executor. Apply the primitive operations to the supplied records. Return only one JSON array of result records, with no explanation or markdown.`
+2. the literal four-character header `\n\nTASK JSON:\n`;
+3. the canonical compact JSON of exactly `family`, `input` and `query`, taken from
+   the candidate payload;
+4. the literal four-character header `\n\nOUTPUT JSON:\n`.
+
+`declared_budget` is deliberately absent: it is a control record for the run
+manifest, not task content, and putting it in the prompt would vary a number that
+no condition in the E01 matrix changes. `support` and `presentation_variant` are
+absent because the frozen condition is the symbolic surface with no support
+examples. Scorer-side field names are rejected recursively before a byte is
+rendered.
+
+The execution plan freezes `prompt_renderer_revision`, the runner revision
+`e01-runner-v1`, and `prompt_sha256`: the SHA-256 over the rendered prompts for
+every frozen episode, in manifest order, each terminated by one newline. This
+value is binding, not a label: the runner recomputes the digest over the generated
+manifest and compares it with the plan before the preflight and before any model
+or GPU access, and refuses on a mismatch. It re-verifies both input digests
+through the preflight as well, and it loads only the pinned revision recorded
+above.
+
+The runner performs one deterministic generation per episode, records the raw
+prediction outside Git, and stops on the first failure rather than retrying. The
+frozen stop conditions are enforced where the runner can reach them: a digest,
+revision, identity or output-contract mismatch stops the run and preserves it.
+
 ## Scoring and evidence
 
 `e01-records-scorer-v1` parses predictions independently from the generator and
@@ -65,6 +99,19 @@ assistant capability.
 
 Stop and preserve the run if the pinned artifacts, episode/reference hashes,
 scorer revision, resource capture, or candidate boundary do not match the plan;
-if the model cannot load; if an episode times out or produces malformed output;
-or if any authorization field does not name the exact run. Do not silently rerun
-or alter the protocol after seeing final outputs.
+if the model cannot load; if an episode times out; if the frozen prompt digest
+does not match the prompt set the run would render; or if any authorization field
+does not name the exact run. Do not silently rerun or alter the protocol after
+seeing final outputs.
+
+**Erratum — plan `amended_at_utc` `2026-09-21T05:14:41Z`, review #53.** An earlier
+version of this section listed "produces malformed output" as a stop condition.
+That contradicted the scoring section above, which declares `missing`,
+`invalid_json`, `schema_or_parse_error` and `exact_mismatch` as error classes: a
+stopped run can never reach them, so those classes would have been dead apparatus,
+and a single model slip could have spent the one authorized attempt. The scoring
+section is the more specific instrument, so it governs. The documents and the
+executed plan now agree: `runner.stop_on_malformed_output` is `false`, and a
+malformed, non-array or missing output is scored under its declared class and does
+not abort the run. Only the conditions listed above stop it. The applied rule is
+recorded in every run record, failed runs included, through `RunPlan.to_record()`.
