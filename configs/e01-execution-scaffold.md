@@ -68,7 +68,9 @@ python3 scripts/e01_preflight.py --run-id e01-pilot-001 --owner eido \
     --plan configs/e01-execution-plan.json \
     --r02-record results/R02/r02-smoke-001 \
     --run-dir results/E01/e01-pilot-001 \
-    --authorization-file /path/to/operator-record.json
+    --authorization-file /path/to/operator-record.json \
+    --episode-manifest /path/to/episode-manifest.jsonl \
+    --reference-answers /path/to/reference-answers.jsonl
 ```
 
 Exit codes: `0` the preflight passed and no run was executed, `1` a check

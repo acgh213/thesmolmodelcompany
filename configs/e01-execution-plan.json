@@ -11,8 +11,8 @@
   "artifacts": {
     "generator_revision": "records-v1",
     "scorer_revision": "e01-records-scorer-v1",
-    "episode_manifest_sha256": "072611434bd8140d2f1520b411b1ddfe941feaa0dd859c6a3ef3db0e701b3b56",
-    "reference_answers_sha256": "d736ff9e5338003560cdf4b6f1a4f20732095f184fff262faccd106308251ae5"
+    "episode_manifest_sha256": "ecb832a72bb39c87ba9821c07a31e538d735632acd0cf0b01f39eebc7ac14b7c",
+    "reference_answers_sha256": "53f235d147f2da4d922448c44904a3fbcd2916d7ee6f034d35179ec34e144562"
   },
   "resources": {
     "peak_vram_mib": "UNSET",

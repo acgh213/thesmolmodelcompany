@@ -32,15 +32,22 @@ def build(seed_sets: dict[str, list[int]], record_count: int = 5) -> tuple[list[
     candidates: list[dict[str, Any]] = []
     references: list[dict[str, Any]] = []
     metadata: list[dict[str, Any]] = []
+    seen_ids: set[str] = set()
     index = 0
     for split in ("development", "final"):
         for requested_seed in seed_sets[split]:
             episode = generate_episode(requested_seed, split=split)
             budget = {"max_new_tokens": 256, "time_cap_seconds": 1200}
             payload = episode.candidate_payload(budget)
-            episode_id = payload["task_id"]
+            episode_id = str(payload["task_id"])
+            if episode_id in seen_ids:
+                raise ValueError(
+                    f"duplicate candidate id {episode_id} for requested seed {requested_seed}; "
+                    "choose a non-colliding frozen seed"
+                )
+            seen_ids.add(episode_id)
             candidates.append({"index": index, "episode_id": episode_id, "payload": payload})
-            references.append({"index": index, "episode_id": episode_id, "answer": episode.scorer_record()["answer"]})
+            references.append({"index": index, "episode_id": episode_id, "split": split, "answer": episode.scorer_record()["answer"]})
             metadata.append({
                 "index": index,
                 "episode_id": episode_id,

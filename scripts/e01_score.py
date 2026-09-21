@@ -34,14 +34,33 @@ def _answer_hash(answer: Any) -> str:
 
 
 def score(reference_path: Path, prediction_path: Path) -> dict[str, Any]:
-    references = {row["episode_id"]: row["answer"] for row in _load_jsonl(reference_path)}
-    predictions = {row["episode_id"]: row for row in _load_jsonl(prediction_path)}
+    reference_rows = _load_jsonl(reference_path)
+    prediction_rows = _load_jsonl(prediction_path)
+    references: dict[str, dict[str, Any]] = {}
+    duplicate_references: list[str] = []
+    for row in reference_rows:
+        episode_id = str(row["episode_id"])
+        if episode_id in references:
+            duplicate_references.append(episode_id)
+        references[episode_id] = row
+    predictions: dict[str, dict[str, Any]] = {}
+    duplicate_predictions: list[str] = []
+    for row in prediction_rows:
+        episode_id = str(row["episode_id"])
+        if episode_id in predictions:
+            duplicate_predictions.append(episode_id)
+        predictions[episode_id] = row
     rows: list[dict[str, Any]] = []
     counts: Counter[str] = Counter()
-    for episode_id, answer in references.items():
+    if duplicate_references:
+        counts.update({"duplicate_reference": len(duplicate_references)})
+    split_counts: dict[str, Counter[str]] = {"development": Counter(), "final": Counter()}
+    for episode_id, reference in references.items():
+        answer = reference["answer"]
+        split = str(reference.get("split", "UNSET"))
         if episode_id not in predictions:
             kind = "missing"
-            row = {"episode_id": episode_id, "error_class": kind, "correct": False}
+            row = {"episode_id": episode_id, "split": split, "error_class": kind, "correct": False}
         else:
             raw = predictions[episode_id].get("text")
             try:
@@ -56,17 +75,36 @@ def score(reference_path: Path, prediction_path: Path) -> dict[str, Any]:
                     kind = "correct"
                 else:
                     kind = "exact_mismatch"
-            row = {"episode_id": episode_id, "error_class": kind, "correct": kind == "correct"}
+            row = {"episode_id": episode_id, "split": split, "error_class": kind, "correct": kind == "correct"}
         counts[kind] += 1
+        split_counts.setdefault(split, Counter())[kind] += 1
         rows.append(row)
-    total = len(references)
+    for episode_id in duplicate_predictions:
+        counts["duplicate_prediction"] += 1
+        rows.append({"episode_id": episode_id, "error_class": "duplicate_prediction", "correct": False})
+    for episode_id in sorted(set(predictions) - set(references)):
+        counts["unknown_prediction"] += 1
+        rows.append({"episode_id": episode_id, "error_class": "unknown_prediction", "correct": False})
+    total = len(reference_rows)
     correct = counts["correct"]
+    aggregates = {
+        split: {
+            "total": sum(values.values()),
+            "correct": values["correct"],
+            "accuracy": values["correct"] / sum(values.values()) if sum(values.values()) else 0.0,
+            "error_counts": dict(sorted(values.items())),
+        }
+        for split, values in split_counts.items()
+        if values
+    }
     return {
         "scorer_revision": SCORER_REVISION,
         "total": total,
         "correct": correct,
         "accuracy": correct / total if total else 0.0,
         "error_counts": dict(sorted(counts.items())),
+        "split_aggregates": aggregates,
+        "duplicate_reference_ids": sorted(set(duplicate_references)),
         "episodes": rows,
         "reference_answers_sha256": hashlib.sha256(reference_path.read_bytes()).hexdigest(),
     }

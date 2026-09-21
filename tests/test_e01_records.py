@@ -17,7 +17,7 @@ class E01RecordsProtocolTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             candidates, references, _ = e01_records.build(
-                {"development": list(range(1000, 1008)), "final": list(range(2000, 2024))}
+                {"development": list(range(1000, 1008)), "final": list(range(2000, 2020)) + list(range(2021, 2025))}
             )
             self.assertEqual(len(candidates), 32)
             self.assertEqual(len(references), 32)
@@ -25,14 +25,14 @@ class E01RecordsProtocolTests(unittest.TestCase):
             self.assertEqual([row["index"] for row in candidates[8:]], list(range(8, 32)))
             e01_records._write_jsonl(out / "manifest.jsonl", candidates)
             e01_records._write_jsonl(out / "refs.jsonl", references)
-            self.assertEqual(e01_records._sha256(out / "manifest.jsonl"), "072611434bd8140d2f1520b411b1ddfe941feaa0dd859c6a3ef3db0e701b3b56")
-            self.assertEqual(e01_records._sha256(out / "refs.jsonl"), "d736ff9e5338003560cdf4b6f1a4f20732095f184fff262faccd106308251ae5")
+            self.assertEqual(e01_records._sha256(out / "manifest.jsonl"), "ecb832a72bb39c87ba9821c07a31e538d735632acd0cf0b01f39eebc7ac14b7c")
+            self.assertEqual(e01_records._sha256(out / "refs.jsonl"), "53f235d147f2da4d922448c44904a3fbcd2916d7ee6f034d35179ec34e144562")
 
     def test_frozen_hash_verification_rejects_tampering(self):
         with tempfile.TemporaryDirectory() as tmp:
             out = Path(tmp)
             candidates, references, _ = e01_records.build(
-                {"development": list(range(1000, 1008)), "final": list(range(2000, 2024))}
+                {"development": list(range(1000, 1008)), "final": list(range(2000, 2020)) + list(range(2021, 2025))}
             )
             manifest = out / "manifest.jsonl"
             refs = out / "refs.jsonl"
@@ -40,7 +40,7 @@ class E01RecordsProtocolTests(unittest.TestCase):
             e01_records._write_jsonl(refs, references)
             self.assertEqual(
                 e01_records.verify_frozen_outputs(ROOT / "configs/e01-execution-plan.json", manifest, refs)["episode_manifest_sha256"],
-                "072611434bd8140d2f1520b411b1ddfe941feaa0dd859c6a3ef3db0e701b3b56",
+                "ecb832a72bb39c87ba9821c07a31e538d735632acd0cf0b01f39eebc7ac14b7c",
             )
             manifest.write_text(manifest.read_text() + "tampered\n")
             with self.assertRaises(ValueError):

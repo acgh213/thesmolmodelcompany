@@ -63,6 +63,7 @@ try:  # bare script (sys.path[0] is scripts/) or scripts/ already on sys.path
         validate_run_target,
     )
     from e01_identity import PinError, load_pin, load_plan, validate_plan
+    from e01_records import verify_frozen_outputs
     from r02_gate import EXIT_GATE_CLOSED, EXIT_OK, EXIT_STEP_FAILED, is_unset, redact_secrets
 except ModuleNotFoundError:  # imported as scripts.<module> from the repository root
     from scripts.e01_gate import (
@@ -75,6 +76,7 @@ except ModuleNotFoundError:  # imported as scripts.<module> from the repository 
         validate_run_target,
     )
     from scripts.e01_identity import PinError, load_pin, load_plan, validate_plan
+    from scripts.e01_records import verify_frozen_outputs
     from scripts.r02_gate import (
         EXIT_GATE_CLOSED,
         EXIT_OK,
@@ -123,6 +125,8 @@ def build_parser() -> argparse.ArgumentParser:
         required=True,
         help="operator record naming this run (required; the gate fails closed without it)",
     )
+    parser.add_argument("--episode-manifest", required=True, help="frozen candidate manifest JSONL")
+    parser.add_argument("--reference-answers", required=True, help="frozen independent references JSONL")
     return parser
 
 
@@ -185,6 +189,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         for problem in problems:
             print(f"e01_preflight: {redact_secrets(problem)}", file=sys.stderr)
         return EXIT_STEP_FAILED
+    try:
+        frozen_hashes = verify_frozen_outputs(
+            args.plan, args.episode_manifest, args.reference_answers
+        )
+    except (OSError, KeyError, ValueError) as exc:
+        print(f"e01_preflight: frozen artifact verification failed: {redact_secrets(exc)}", file=sys.stderr)
+        return EXIT_STEP_FAILED
 
     run_dir = args.run_dir or expected_run_dir(args.run_id)
     report: dict[str, Any] = {
@@ -206,7 +217,10 @@ def main(argv: Sequence[str] | None = None) -> int:
             "run_target_on_layout": True,
             "declared_identity_matches_pin": True,
             "protocol_frozen": True,
+            "frozen_episode_manifest_matches": True,
+            "frozen_reference_answers_match": True,
         },
+        "frozen_hashes": frozen_hashes,
         "not_established": list(NOT_ESTABLISHED),
     }
 

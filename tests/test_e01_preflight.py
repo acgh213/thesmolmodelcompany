@@ -11,6 +11,7 @@ from pathlib import Path
 
 from scripts.e01_gate import EXPERIMENT_ID, SCOPE_E01_EXECUTION
 from scripts.e01_preflight import main
+from scripts.e01_records import _write_jsonl, build
 
 ROOT = Path(__file__).resolve().parents[1]
 PIN_DIR = ROOT / "results" / "R02" / "r02-smoke-001"
@@ -46,15 +47,8 @@ def unfrozen_plan_file(directory):
 
 
 def frozen_plan_file(directory):
-    plan = json.loads(PLAN_PATH.read_text(encoding="utf-8"))
-    plan["artifacts"] = {
-        "generator_revision": "r03-records-v1",
-        "scorer_revision": "r03-records-v1",
-        "episode_manifest_sha256": "a" * 64,
-        "reference_answers_sha256": "b" * 64,
-    }
     path = Path(directory) / "frozen-plan.json"
-    path.write_text(json.dumps(plan), encoding="utf-8")
+    path.write_text(PLAN_PATH.read_text(encoding="utf-8"), encoding="utf-8")
     return path
 
 
@@ -66,6 +60,11 @@ class PreflightTests(unittest.TestCase):
         os.chdir(self.tmp)
         self.auth = self.tmp / "operator-record.json"
         self.auth.write_text(json.dumps(record()), encoding="utf-8")
+        candidates, references, _ = build({"development": list(range(1000, 1008)), "final": list(range(2000, 2020)) + list(range(2021, 2025))})
+        self.episode_manifest = self.tmp / "episode-manifest.jsonl"
+        self.reference_answers = self.tmp / "reference-answers.jsonl"
+        _write_jsonl(self.episode_manifest, candidates)
+        _write_jsonl(self.reference_answers, references)
         self._out = io.StringIO()
         self._err = io.StringIO()
 
@@ -81,6 +80,8 @@ class PreflightTests(unittest.TestCase):
             "--r02-record", str(PIN_DIR),
             "--run-dir", RUN_DIR,
             "--authorization-file", str(self.auth),
+            "--episode-manifest", str(self.episode_manifest),
+            "--reference-answers", str(self.reference_answers),
         ] + list(extra)
         with contextlib.redirect_stdout(self._out), contextlib.redirect_stderr(self._err):
             return main(argv)
@@ -140,6 +141,8 @@ class PreflightTests(unittest.TestCase):
             "--plan", str(PLAN_PATH),
             "--r02-record", str(PIN_DIR),
             "--authorization-file", str(self.auth),
+            "--episode-manifest", str(self.episode_manifest),
+            "--reference-answers", str(self.reference_answers),
         ]
         with contextlib.redirect_stdout(self._out), contextlib.redirect_stderr(self._err):
             code = main(argv)
@@ -158,6 +161,8 @@ class PreflightTests(unittest.TestCase):
             "--r02-record", str(PIN_DIR),
             "--run-dir", "results/E01/e01-pilot-007",
             "--authorization-file", str(self.auth),
+            "--episode-manifest", str(self.episode_manifest),
+            "--reference-answers", str(self.reference_answers),
         ]
         with contextlib.redirect_stdout(self._out), contextlib.redirect_stderr(self._err):
             code = main(argv)
