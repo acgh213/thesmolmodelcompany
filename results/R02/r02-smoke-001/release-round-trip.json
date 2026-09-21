@@ -28,7 +28,7 @@
   "retained": false,
   "run_id": "r02-smoke-001",
   "source_bytes": 1048576,
-  "source_path": "/home/cassie/ml/scratch/r02-smoke-001/r02-persist-probe.bin",
+  "source_path": "<SCRATCH_ROOT>/r02-smoke-001/r02-persist-probe.bin",
   "source_sha256": "518aea3ad697f6e3b977d5384a8a819ef05d1e51efc170ccc6aa094b83bd76a7",
   "started_at_utc": "2026-09-21T03:09:47Z",
   "state": "draft-prerelease",

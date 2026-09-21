@@ -1,5 +1,5 @@
 {
-  "destination": "/home/cassie/ml/models/qwen2.5-1.5b-8faed76",
+  "destination": "<FETCH_DESTINATION>/qwen2.5-1.5b-8faed76",
   "error": "UNSET",
   "files": [
     {

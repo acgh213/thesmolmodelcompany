@@ -14,21 +14,48 @@ smoke as an experiment — which the operator's authorization excludes.
 
 ## Authorization
 
-The run executed under three scoped approval records, one per gated step, each
-`granted: true`, `approved_by: vesper`, `operator_go: cassie`:
+Two separate decisions are involved, and they must not be conflated:
 
-| Record | Scope | Approved at (UTC) |
-|---|---|---|
-| `authorization-fetch.json` | `r02-artifact-fetch` | 2026-09-21T02:57:02Z |
-| `authorization-smoke.json` | `r02-readiness-smoke` | 2026-09-21T02:57:02Z |
-| `authorization-release.json` | `r02-release-round-trip` | 2026-09-21T02:57:02Z |
+1. **Procedure approval — `vesper`, review #43.** `vesper` reviewed and approved
+   the *executable procedure* (PR #19, head
+   `43ae50b1590985ef1d4e9fb041a750cf166060b1`, `checks / documentation integrity`
+   = success, merged at `dbad39e1b9436ea9a3b70ff94fa2c0e50f494b79`). That review
+   approved the code; it did **not** authorize a run, and it is not an execution
+   approval.
+2. **Operator go/no-go — `cassie`, recorded separately.** The operator
+   authorized *this run and nothing else*: the R02 readiness smoke. The decision
+   was received before these records were written and is the only authorization
+   the run executed under.
 
-`approved_at_utc` is review #43's submitted timestamp, read back from the Forgejo
-API; `record_created_at_utc` in each file is when the record was written. The
-gate the run executed under is merged at
-`dbad39e1b9436ea9a3b70ff94fa2c0e50f494b79` (PR #19, head
-`43ae50b1590985ef1d4e9fb041a750cf166060b1`, `checks / documentation integrity` =
-success, review #43 = APPROVED).
+The three scoped records therefore carry `approved_by: vesper` **together with**
+`procedure_reviewer_only: true`, and their `reference` reads "PR #19 review #43
+procedure approval; operator go recorded separately":
+
+| Record | Scope | `procedure_approved_at_utc` | Operator go |
+|---|---|---|---|
+| `authorization-fetch.json` | `r02-artifact-fetch` | 2026-09-21T02:57:02Z | `cassie`, separate |
+| `authorization-smoke.json` | `r02-readiness-smoke` | 2026-09-21T02:57:02Z | `cassie`, separate |
+| `authorization-release.json` | `r02-release-round-trip` | 2026-09-21T02:57:02Z | `cassie`, separate |
+
+`approved_at_utc` holds review #43's submitted timestamp, read back from the
+Forgejo API — it is the *procedure* approval time, not an execution approval
+time. `record_created_at_utc` is when each record was written, and
+`operator_go_received_before_utc` marks that the operator decision preceded it.
+The gate itself reads `granted`, `scope` and the three reference fields, all of
+which were present and unchanged when the run executed.
+
+### Path labels used in this record
+
+Committed evidence carries stable labels instead of the operator's filesystem
+layout. The recipe defines the concrete paths:
+
+| Label | Means |
+|---|---|
+| `<VENV_ROOT>/.venv-r02` | the recipe's environment path |
+| `<FETCH_DESTINATION>/qwen2.5-1.5b-8faed76` | the recipe's fetch destination |
+| `<HF_CACHE_ROOT>` | the execution target's Hugging Face cache root |
+| `<SCRATCH_ROOT>` | a run-local scratch root outside the repository |
+| `results/R02/r02-smoke-001/...` | repository-relative, as always |
 
 ## Environment
 
@@ -36,7 +63,7 @@ success, review #43 = APPROVED).
 |---|---|
 | Execution target | WSL2 on the Windows desktop (recipe target) |
 | Interpreter | CPython 3.12.3 (`python3 -m venv`) |
-| Environment | `/home/cassie/ml/projects/smolmodelco/.venv-r02`, created fresh for this run |
+| Environment | `<VENV_ROOT>/.venv-r02`, created fresh for this run |
 | Package installer | `pip` upgraded inside the environment before any install (pip 26.2.1) |
 | Authoritative dependency record | `raw/install.log` (`pip freeze`), not this table |
 
@@ -119,7 +146,7 @@ configuration file that is removed afterwards, and it never appears in argv, a
 URL, or a log line. Readback URI (release since deleted):
 `https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/releases/download/r02-persist-r02-smoke-001-20260921T030947Z-a97305eb/r02-persist-probe.bin.518aea3ad697f6e3`.
 The local probe file is retained at
-`/home/cassie/ml/scratch/r02-smoke-001/r02-persist-probe.bin` so the recorded
+`<SCRATCH_ROOT>/r02-smoke-001/r02-persist-probe.bin` so the recorded
 digest stays checkable; it is not in the repository.
 
 ## Resource observations
@@ -132,8 +159,9 @@ any load. GPU figures describe the shared desktop GPU; RAM figures describe the
 execution target, not the Windows host.
 
 Pre-run host audit (`pre-run-probe.json`, 3 instants at 03:09:37/42/47Z, 0 probe
-errors): VRAM used 1248 MiB of 10240 MiB; RAM available 23,196–23,198 MiB;
-GPU utilization 0%. Addressable headroom at that point: 8,992 MiB VRAM.
+errors): VRAM used 1248 MiB of 10240 MiB; RAM available **23,193–23,198 MiB**
+(exact readings 23,196.00, 23,198.15, 23,192.98 MiB); GPU utilization 0%.
+Addressable headroom at that point: 8,992 MiB VRAM.
 
 In-run samples (`resource-samples.json`; 5 samples pre-load, 7 post):
 
@@ -201,7 +229,7 @@ ok`, `failure.kind: UNSET`, `retried: false`.
   (`.venv/` is), so it appears as untracked in the clone that hosts it. This run
   created it there because the recipe names that absolute path. A future change
   could add `.venv-r02/` to `.gitignore`.
-- The fetch destination (`~/ml/models/qwen2.5-1.5b-8faed76`, 2.9 GiB) and the
+- The fetch destination (`<FETCH_DESTINATION>/qwen2.5-1.5b-8faed76`, 2.9 GiB) and the
   cache copy the model loaded (2.9 GiB) both exist on disk. That duplication is
   deliberate: the recipe keeps base weights out of the repository and the
   reproduction path re-fetches and re-hashes rather than trusting either copy.
@@ -239,3 +267,41 @@ python3 scripts/r02_smoke.py --run-id r02-smoke-NNN --owner <reproducing-agent> 
 # 3. ledger check only if the reproducing agent registers an experiment result
 python3 scripts/build_results_ledger.py --check
 ```
+
+## Post-review corrections (review #45, artifact hygiene only)
+
+Review #45 requested changes to artifact hygiene. None of the corrections below
+touched the run: nothing was re-executed, no artifact or model was downloaded,
+loaded or removed, the GPU was not used, and the results ledger is unchanged
+(`0 run(s)`).
+
+1. **RAM range corrected.** The pre-run audit previously wrote
+   "23,196–23,198 MiB", which was the first-to-last spread rather than the
+   observed range. `pre-run-probe.json` records 23,196.00, 23,198.15 and
+   23,192.98 MiB, so the range is **23,193–23,198 MiB** and the exact readings
+   are now given. No measured value changed; only the summary of them.
+2. **Host-local absolute paths relabelled.** Eight committed files had
+   `/home/...` path strings replaced with the labels documented above
+   (`<VENV_ROOT>`, `<FETCH_DESTINATION>`, `<HF_CACHE_ROOT>`, `<SCRATCH_ROOT>`,
+   and the repository-relative `results/R02/r02-smoke-001/...`). The strings
+   changed were identifiers of *where files live*, never a digest, a byte count,
+   a timestamp, a status, or any other measured value. Identifiers kept their
+   discriminating parts — every blob target still names its full content-addressed
+   hash and every snapshot path still names the pinned revision — so each
+   artifact stays identifiable without publishing the operator's filesystem
+   layout. The ignored `raw/` logs and the local files were **not** altered.
+3. **Authorization wording clarified.** The three scoped records now carry
+   `procedure_reviewer_only: true` and the `reference` "PR #19 review #43
+   procedure approval; operator go recorded separately"; see the Authorization
+   section above. `vesper` approved the procedure; `cassie`'s separate operator
+   go authorized this run, and no part of this record should be read as `vesper`
+   authorizing execution.
+
+One artifact is intentionally **not** rewritten: `manifest.json` was written by
+the run itself, and its embedded `authorization` block is the snapshot of the
+records as they read when the gate consumed them. Only its
+`plan.artifact_manifest_path` was relabelled (item 2). The current wording of the
+authorization records — the three files this section describes — is the authority,
+and the difference between them is exactly the wording clarification above, not
+a change of gate inputs: `granted`, `scope`, `reference`, `approved_by` and
+`approved_at_utc` were unchanged by it.

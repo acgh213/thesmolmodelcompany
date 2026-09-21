@@ -34,7 +34,7 @@
   },
   "owner": "eido",
   "plan": {
-    "artifact_manifest_path": "/home/cassie/ml/work/r021-executable-gate/results/R02/r02-smoke-001/artifact-manifest.json",
+    "artifact_manifest_path": "results/R02/r02-smoke-001/artifact-manifest.json",
     "cache_state": "cold",
     "device": "cuda:0",
     "max_new_tokens": 8,
