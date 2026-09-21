@@ -280,10 +280,12 @@ loaded or removed, the GPU was not used, and the results ledger is unchanged
    observed range. `pre-run-probe.json` records 23,196.00, 23,198.15 and
    23,192.98 MiB, so the range is **23,193–23,198 MiB** and the exact readings
    are now given. No measured value changed; only the summary of them.
-2. **Host-local absolute paths relabelled.** Eight committed files had
-   absolute path strings beginning at the operator's home directory were replaced with the labels documented above
-   (`<VENV_ROOT>`, `<FETCH_DESTINATION>`, `<HF_CACHE_ROOT>`, `<SCRATCH_ROOT>`,
-   and the repository-relative `results/R02/r02-smoke-001/...`). The strings
+2. **Host-local absolute paths relabelled.** Four committed files carry stable
+   path labels now, and one more carries a repository-relative path; before
+   relabelling, thirteen host-local path occurrences across five committed files
+   were replaced. The labels are `<VENV_ROOT>`, `<FETCH_DESTINATION>`,
+   `<HF_CACHE_ROOT>` and `<SCRATCH_ROOT>`, plus the repository-relative
+   `results/R02/r02-smoke-001/...`. The strings
    changed were identifiers of *where files live*, never a digest, a byte count,
    a timestamp, a status, or any other measured value. Identifiers kept their
    discriminating parts — every blob target still names its full content-addressed
@@ -303,5 +305,7 @@ records as they read when the gate consumed them. Only its
 `plan.artifact_manifest_path` was relabelled (item 2). The current wording of the
 authorization records — the three files this section describes — is the authority,
 and the difference between them is exactly the wording clarification above, not
-a change of gate inputs: `granted`, `scope`, `reference`, `approved_by` and
-`approved_at_utc` were unchanged by it.
+a change of gate inputs: `granted`, `scope`, `approved_by` and
+`approved_at_utc` are unchanged. The `reference` field is the one that was
+clarified deliberately (item 3); no measurement and no run-identity field
+changed.
