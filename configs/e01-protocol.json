@@ -1,0 +1,40 @@
+{
+  "experiment": "E01",
+  "protocol_version": "e01-records-v1",
+  "family": "records",
+  "condition": "canonical-representation-with-primitives",
+  "claim_tier": "development-signal",
+  "task": {
+    "record_count": 5,
+    "development_seeds": [1000, 1001, 1002, 1003, 1004, 1005, 1006, 1007],
+    "final_seeds": [2000, 2001, 2002, 2003, 2004, 2005, 2006, 2007, 2008, 2009, 2010, 2011, 2012, 2013, 2014, 2015, 2016, 2017, 2018, 2019, 2021, 2022, 2023, 2024],
+    "generation_retries": "generator-determined-effective-seed-is-recorded",
+    "candidate_surface": "R03 candidate_payload with canonical records and explicit primitive operations; no answer, latent_program, seed, split, or provenance fields"
+  },
+  "decoding": {
+    "do_sample": false,
+    "temperature": 0.0,
+    "top_p": 1.0,
+    "max_new_tokens": 256,
+    "retries": 0,
+    "output_contract": "one JSON array of result records and no surrounding prose"
+  },
+  "scoring": {
+    "scorer_revision": "e01-records-scorer-v1",
+    "normalization": "canonical JSON with sorted object keys and compact separators",
+    "exact_match": "parsed prediction equals the independent reference answer; invalid JSON and missing output are incorrect",
+    "error_classes": ["missing", "invalid_json", "schema_or_parse_error", "exact_mismatch"]
+  },
+  "resources": {
+    "time_cap_seconds_per_episode": 1200,
+    "resource_capture": "wall time, peak VRAM, peak RAM, model identity, artifact hashes, failures"
+  },
+  "boundaries": {
+    "development": "descriptive only; no prompt, decoder, scorer, or library changes after final manifest generation",
+    "final": "held out until the frozen run; no final answers used for tuning",
+    "training": "none",
+    "tuning": "none",
+    "ablations": "none",
+    "external_services": "none"
+  }
+}
