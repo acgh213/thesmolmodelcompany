@@ -1,0 +1,160 @@
+{
+  "destination": "<FETCH_DESTINATION>/qwen2.5-1.5b-8faed76",
+  "error": "UNSET",
+  "files": [
+    {
+      "observed_bytes": 684,
+      "observed_sha256": "0e8c8aa86468aba09c9d32157ff4bc2301c7e6c50e4398960425b2ea71e66f77",
+      "path": "config.json",
+      "role": "model-config",
+      "status": "first-observation",
+      "transferred_bytes": 684
+    },
+    {
+      "observed_bytes": 138,
+      "observed_sha256": "8c970692323e3ea0e9b8b0a4dca79388d31226e41f83c9fd6014804280ebf6e8",
+      "path": "generation_config.json",
+      "role": "generation-config",
+      "status": "first-observation",
+      "transferred_bytes": 138
+    },
+    {
+      "observed_bytes": 3087467144,
+      "observed_sha256": "a961db72e75d52b18e6b0c9d379e51a26973b233385e0e127fdda7d648aec796",
+      "path": "model.safetensors",
+      "role": "weights",
+      "status": "first-observation",
+      "transferred_bytes": 3087467144
+    },
+    {
+      "observed_bytes": 7031645,
+      "observed_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+      "path": "tokenizer.json",
+      "role": "tokenizer",
+      "status": "first-observation",
+      "transferred_bytes": 7031645
+    },
+    {
+      "observed_bytes": 7228,
+      "observed_sha256": "c91efca15ceff6e9ee9424db58a6f59cd41294e550a86cbd07e3c1fb500b34f9",
+      "path": "tokenizer_config.json",
+      "role": "tokenizer",
+      "status": "first-observation",
+      "transferred_bytes": 7228
+    },
+    {
+      "observed_bytes": 2776833,
+      "observed_sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+      "path": "vocab.json",
+      "role": "tokenizer",
+      "status": "first-observation",
+      "transferred_bytes": 2776833
+    },
+    {
+      "observed_bytes": 1671839,
+      "observed_sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "path": "merges.txt",
+      "role": "tokenizer",
+      "status": "first-observation",
+      "transferred_bytes": 1671839
+    }
+  ],
+  "finished_at_utc": "2026-09-21T03:09:23Z",
+  "kind": "r02-artifact-fetch",
+  "manifest": {
+    "declared_at_utc": "2026-09-21T03:07:22Z",
+    "files": [
+      {
+        "expected_bytes": "UNSET",
+        "expected_sha256": "UNSET",
+        "observed_bytes": 684,
+        "observed_sha256": "0e8c8aa86468aba09c9d32157ff4bc2301c7e6c50e4398960425b2ea71e66f77",
+        "path": "config.json",
+        "required": true,
+        "role": "model-config",
+        "status": "first-observation"
+      },
+      {
+        "expected_bytes": "UNSET",
+        "expected_sha256": "UNSET",
+        "observed_bytes": 138,
+        "observed_sha256": "8c970692323e3ea0e9b8b0a4dca79388d31226e41f83c9fd6014804280ebf6e8",
+        "path": "generation_config.json",
+        "required": true,
+        "role": "generation-config",
+        "status": "first-observation"
+      },
+      {
+        "expected_bytes": "UNSET",
+        "expected_sha256": "UNSET",
+        "observed_bytes": 3087467144,
+        "observed_sha256": "a961db72e75d52b18e6b0c9d379e51a26973b233385e0e127fdda7d648aec796",
+        "path": "model.safetensors",
+        "required": true,
+        "role": "weights",
+        "status": "first-observation"
+      },
+      {
+        "expected_bytes": "UNSET",
+        "expected_sha256": "UNSET",
+        "observed_bytes": 7031645,
+        "observed_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+        "path": "tokenizer.json",
+        "required": true,
+        "role": "tokenizer",
+        "status": "first-observation"
+      },
+      {
+        "expected_bytes": "UNSET",
+        "expected_sha256": "UNSET",
+        "observed_bytes": 7228,
+        "observed_sha256": "c91efca15ceff6e9ee9424db58a6f59cd41294e550a86cbd07e3c1fb500b34f9",
+        "path": "tokenizer_config.json",
+        "required": true,
+        "role": "tokenizer",
+        "status": "first-observation"
+      },
+      {
+        "expected_bytes": "UNSET",
+        "expected_sha256": "UNSET",
+        "observed_bytes": 2776833,
+        "observed_sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+        "path": "vocab.json",
+        "required": true,
+        "role": "tokenizer",
+        "status": "first-observation"
+      },
+      {
+        "expected_bytes": "UNSET",
+        "expected_sha256": "UNSET",
+        "observed_bytes": 1671839,
+        "observed_sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+        "path": "merges.txt",
+        "required": true,
+        "role": "tokenizer",
+        "status": "first-observation"
+      }
+    ],
+    "kind": "r02-artifact-manifest",
+    "license": "UNSET",
+    "precision": "bfloat16",
+    "recorded_at_utc": "2026-09-21T03:07:22Z",
+    "repo_id": "Qwen/Qwen2.5-1.5B",
+    "requested_revision": "8faed761d45a263340a0528343f099c05c9a4323",
+    "resolved_revision": "8faed761d45a263340a0528343f099c05c9a4323",
+    "source": "huggingface",
+    "totals": {
+      "expected_bytes": "UNSET",
+      "file_count": 7,
+      "observed_bytes": 3098955511,
+      "observed_files": 7
+    }
+  },
+  "mismatches": [],
+  "missing": [],
+  "repo_id": "Qwen/Qwen2.5-1.5B",
+  "requested_revision": "8faed761d45a263340a0528343f099c05c9a4323",
+  "resolved_revision": "8faed761d45a263340a0528343f099c05c9a4323",
+  "started_at_utc": "2026-09-21T03:07:22Z",
+  "status": "ok"
+}
