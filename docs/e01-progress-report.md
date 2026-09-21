@@ -23,14 +23,16 @@ yet produced a reviewable E01 run record, so the results ledger remains empty.
 - **E01 execution:** one greedy generation per episode, maximum 256 new tokens,
   no tuning, no retry, no ablation, and explicit error classes for missing,
   invalid, schema-invalid, or mismatched output.
+- **Operator record:** the exact `e01-pilot-001` go/no-go is recorded in
+  Forgejo issue #21; it remains unspent until the reviewed runner executes.
 
 ## Frozen provenance
 
 - E01 protocol merge: `4c1b373`
 - Prompt/runner merge: `4f90434`
-- Procedure review: Vesper, Forgejo review #54
-- Run authorization: Cassie, exactly `e01-pilot-001`
-- Candidate manifest SHA-256:
+- Procedure review: Vesper, Forgejo review #51 (protocol freeze) and review #54 (prompt/runner)
+- Run authorization: Cassie, exactly `e01-pilot-001`, recorded in issue #21
+- Episode manifest SHA-256:
   `ecb832a72bb39c87ba9821c07a31e538d735632acd0cf0b01f39eebc7ac14b7c`
 - Reference-answer SHA-256:
   `53f235d147f2da4d922448c44904a3fbcd2916d7ee6f034d35179ec34e144562`
