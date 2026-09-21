@@ -6,6 +6,9 @@ Status: **preflight — not yet executed.** No package has been installed, no
 model or tokenizer artifact has been retrieved, and no smoke run has been
 performed under this recipe. This document is the reproducibility boundary
 submitted for review; the run is authorized only after that review.
+Follow-up gate: [issue #17](https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/issues/17)
+owns the executable procedures this design defers, and the executable pull
+request that cites this section is their binding review gate.
 
 ## Purpose
 
@@ -132,10 +135,88 @@ this table, is the authoritative dependency record for reproduction.
 
 ## Review boundary
 
-This PR is a preflight design only. It records the pinned environment, artifact identity and hashing requirements, persistence decision, clean-state expectations, and the manifest fields that a later authorized execution procedure must implement. It does not contain executable artifact retrieval, model smoke, or release-asset transport commands.
+This document is the design half of R02: the pins, the artifact-identity
+requirements, the persistence decision, the clean-state expectations, and the
+manifest fields. The executable half is
+[issue #17](https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/issues/17),
+implemented by the executable pull request that cites this section.
 
-A separate executable-procedure issue/PR must be reviewed and approved before any package installation, artifact retrieval, model loading, inference, GPU reservation, or live persistence check performed under this recipe. That follow-up must bind
-its implementation and tests to this recipe without treating this design review as execution authorization.
+**That pull request is the binding follow-up gate.** Merging this design did not
+authorize a run, and merging the executable code does not either: #17 requires an
+independent approval from `vesper` of every command path, and only then does the
+operator record a go/no-go decision. Package installation, artifact retrieval,
+model loading, inference, GPU reservation, and a live persistence check are
+consequences of that recorded decision, not of either merge.
+
+### Executable procedure gate added by #17
+
+Five modules carry the executable paths. They are import-safe: importing any of
+them transfers no bytes, imports neither `torch` nor `transformers`, and touches
+no GPU. Each live entry point fails closed with exit code 2 unless it is given an
+approval record matching its scope.
+
+| Module | Responsibility | Entry point |
+|---|---|---|
+| `scripts/r02_gate.py` | Approval record, scope check, credential-hygiene helpers | imported, not run |
+| `scripts/r02_artifacts.py` | Fetch the pinned inputs, hash them, compare, record | `python3 scripts/r02_artifacts.py plan` / `fetch` |
+| `scripts/r02_smoke.py` | Gated tokenizer and model load, one inference, record | `python3 scripts/r02_smoke.py --run-id ID` |
+| `scripts/r02_release.py` | Durable release round trip: upload, read back, verify, clean up | `python3 scripts/r02_release.py self-test` / `round-trip` |
+| `scripts/r02_resources.py` | Timestamped sampling, sampled values labelled apart from peaks | `python3 scripts/r02_resources.py probe` |
+
+`scripts/r02_preflight.py` is unchanged by #17 and still holds only the
+model-free helpers: streaming SHA-256, the explicit-`UNSET` manifest scaffold,
+the local test-only persistence round trip, and the `fetch_and_hash` seam that
+raises `NotImplementedError` and is never invoked
+(`scripts/r02_preflight.py:33-35`). The executable fetch lives in
+`scripts/r02_artifacts.py`; the seam stays as the record of what the preflight
+deliberately did not do.
+
+### The approval record
+
+Every live step reads a JSON approval record and refuses to start without one:
+
+```json
+{
+  "granted": true,
+  "scope": "r02-readiness-smoke",
+  "reference": "issue #17 / executable PR",
+  "approved_by": "vesper",
+  "approved_at_utc": "2026-09-21T03:00:00Z",
+  "operator_go": "cassie"
+}
+```
+
+The scopes are `r02-artifact-fetch`, `r02-readiness-smoke`, and
+`r02-release-round-trip`. A grant for one scope cannot be spent on another, and
+`granted: false`, a malformed record, or a missing file all fail closed. The
+operator writes the record after `vesper` approves the executable PR, and it is
+committed with the run so the approval a run executed under is readable next to
+its measurements.
+
+### Command paths
+
+```bash
+# Identity: fetch the pinned artifacts, hash them, write the artifact manifest.
+python3 scripts/r02_artifacts.py fetch \
+    --destination "$HOME/ml/models/qwen2.5-1.5b-8faed76" \
+    --manifest-out results/R02/<run-id>/artifact-manifest.json \
+    --authorization-file results/R02/<run-id>/authorization.json
+
+# Sequence check for the durable store: in-memory, no credential, no network.
+python3 scripts/r02_release.py self-test
+
+# The live persistence round trip, from the WSL execution target.
+python3 scripts/r02_release.py round-trip --source <artifact> \
+    --run-id <run-id> --authorization-file results/R02/<run-id>/authorization.json
+
+# The readiness smoke. --dry-run checks the gate and stops before any import.
+python3 scripts/r02_smoke.py --run-id <run-id> --run-dir results/R02/<run-id> \
+    --authorization-file results/R02/<run-id>/authorization.json
+```
+
+No command accepts a token, key, or password as an argument, and the fetch path
+refuses to run at all while an ambient Hugging Face token is present, so that
+the provenance of the bytes it retrieved cannot be ambiguous.
 
 ## Clean state and cold cache
 
@@ -199,10 +280,13 @@ deleted. The numbered record above is therefore a one-off observation by the
 author, not a replayable verification, and it does not close issue #7
 deliverable 4.
 
-The durable-storage *decision* above stands as design. Live verification is an
-acceptance criterion of the follow-up executable-procedure gate, which must
-supply a replayable command, a retained probe or its metadata, and a readback
-URI with digests.
+The durable-storage *decision* above stands as design, and
+`scripts/r02_release.py` now supplies the replayable command, the retained
+readback URI with digests, and the cleanup confirmation that this section could
+only describe. The live round trip has **not** been executed under #17: it
+remains an acceptance criterion of the operator's go/no-go step, and
+`scripts/r02_release.py self-test` is the credential-free, network-free check
+that the sequence is wired correctly in the meantime.
 
 ### Credential boundary
 
@@ -252,12 +336,38 @@ to be recorded rather than retried away:
 
 ## Model-free preflight helpers
 
-The repository retains only the model-free `scripts/r02_preflight.py` helpers: streaming SHA-256, an explicit-`UNSET` manifest scaffold, a local test-only
-persistence round-trip, and an importable `fetch_and_hash` seam that raises
-`NotImplementedError` and is intentionally never invoked
-(`scripts/r02_preflight.py:33-35`). These helpers do not retrieve artifacts, execute a model, contact Forgejo, or claim live persistence. Their tests are limited to pure local behavior.
+The model-free `scripts/r02_preflight.py` helpers are described under the gate
+section above; they do not retrieve artifacts, execute a model, contact Forgejo,
+or claim live persistence, and their tests cover pure local behavior only.
 
-The executable fetch/hash, smoke, and Forgejo-release procedures are intentionally out of scope for this PR and must be introduced under a separate review gate.
+## Run directory, ownership, and replay
+
+One directory per attempt, owned by `eido` (compute) and created only by an
+authorized run:
+
+```
+results/R02/<run-id>/
+    authorization.json      # committed: the approval this attempt ran under
+    manifest.json           # committed: the run manifest required by coordination.md
+    artifact-manifest.json  # committed: per-file revision, byte size, and SHA-256
+    resource-samples.json   # committed: the sample series with UTC timestamps
+    report.md               # committed: the run report and ledger front matter
+    raw/                    # git-ignored: full logs and stdout
+    predictions/            # git-ignored: raw outputs, never committed
+```
+
+`<run-id>` is `r02-smoke-<nnn>`. A failed attempt keeps its own directory: the
+first OOM, hash mismatch, or non-terminating step stops that run and is written
+as its result. A diagnosed retry is a new ID that names the prior one in
+`manifest.json` rather than overwriting it. Model weights and tokenizer files
+never enter Git; an artifact too large to commit is published to a Forgejo
+release asset and referenced in `manifest.json` by URI and SHA-256.
+
+Replay, from a rebuilt environment: `scripts/r02_artifacts.py fetch` against the
+committed `artifact-manifest.json`, so a mismatch fails loudly instead of
+passing silently; then `scripts/r02_smoke.py` under an `authorization.json` the
+reproducing agent obtained for its own run; then
+`python3 scripts/build_results_ledger.py` after `report.md` is written.
 
 ## What this recipe does not establish
 
@@ -272,3 +382,11 @@ The executable fetch/hash, smoke, and Forgejo-release procedures are intentional
 - The artifact hash values do not exist yet and cannot until the first fetch.
 - An inference fit would not demonstrate a training fit, and this recipe makes
   no training claim.
+- The executable paths have not been exercised against a live service or a
+  model: no artifact has been fetched, no release asset has been uploaded, no
+  model has been loaded, and no smoke run has been performed. Their tests use
+  injected fakes only, and their live behaviour is exactly what the review gate
+  in issue #17 exists to pin down before the operator decides.
+- The artifact-hash, VRAM-peak, and cold-load fields in a run manifest stay
+  `UNSET` until a run measures them. A sampled maximum is recorded as a sampled
+  maximum, never relabelled a peak.
