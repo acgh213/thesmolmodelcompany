@@ -1,0 +1,27 @@
+{
+  "kind": "e01-execution-plan",
+  "experiment": "E01",
+  "declared_at_utc": "UNSET",
+  "model": {
+    "source": "huggingface",
+    "repo_id": "Qwen/Qwen2.5-1.5B",
+    "precision": "bfloat16",
+    "revision": "8faed761d45a263340a0528343f099c05c9a4323"
+  },
+  "artifacts": {
+    "generator_revision": "UNSET",
+    "scorer_revision": "UNSET",
+    "episode_manifest_sha256": "UNSET",
+    "reference_answers_sha256": "UNSET"
+  },
+  "resources": {
+    "peak_vram_mib": "UNSET",
+    "peak_ram_mib": "UNSET",
+    "wall_clock_seconds": "UNSET"
+  },
+  "notes": [
+    "The model block is asserted against results/R02/r02-smoke-001/ by scripts/e01_identity.py; it is not a new pin.",
+    "Every artifacts.* and resources.* value stays UNSET until the protocol is frozen and the run is authorized.",
+    "The generator, scorer, split and reference-answer apparatus belongs to Research B and is not implemented in this scaffold."
+  ]
+}
