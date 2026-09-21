@@ -28,6 +28,24 @@ class E01RecordsProtocolTests(unittest.TestCase):
             self.assertEqual(e01_records._sha256(out / "manifest.jsonl"), "072611434bd8140d2f1520b411b1ddfe941feaa0dd859c6a3ef3db0e701b3b56")
             self.assertEqual(e01_records._sha256(out / "refs.jsonl"), "d736ff9e5338003560cdf4b6f1a4f20732095f184fff262faccd106308251ae5")
 
+    def test_frozen_hash_verification_rejects_tampering(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            out = Path(tmp)
+            candidates, references, _ = e01_records.build(
+                {"development": list(range(1000, 1008)), "final": list(range(2000, 2024))}
+            )
+            manifest = out / "manifest.jsonl"
+            refs = out / "refs.jsonl"
+            e01_records._write_jsonl(manifest, candidates)
+            e01_records._write_jsonl(refs, references)
+            self.assertEqual(
+                e01_records.verify_frozen_outputs(ROOT / "configs/e01-execution-plan.json", manifest, refs)["episode_manifest_sha256"],
+                "072611434bd8140d2f1520b411b1ddfe941feaa0dd859c6a3ef3db0e701b3b56",
+            )
+            manifest.write_text(manifest.read_text() + "tampered\n")
+            with self.assertRaises(ValueError):
+                e01_records.verify_frozen_outputs(ROOT / "configs/e01-execution-plan.json", manifest, refs)
+
     def test_candidate_surface_has_no_reserved_scorer_keys(self):
         candidates, _, _ = e01_records.build(
             {"development": [1000], "final": [2000]}
