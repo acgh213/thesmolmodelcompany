@@ -56,6 +56,7 @@ EXPERIMENT_ID = "E01"
 PINNED_IDENTITY_FIELDS = ("source", "repo_id", "precision", "revision")
 
 REVISION_PATTERN = re.compile(r"\A[0-9a-f]{40}\Z")
+DIGEST_PATTERN = re.compile(r"\A[0-9a-f]{64}\Z")
 
 # Fields that must still be UNSET until the protocol is frozen and the run is
 # authorized. The generator/scorer revisions are Research B's apparatus; the two
@@ -259,8 +260,12 @@ def freeze_problems(plan: Mapping[str, Any]) -> list[str]:
         return ["plan has no 'artifacts' object"]
     problems: list[str] = []
     for name in UNFROZEN_FIELDS:
-        if not is_frozen(artifacts.get(name)):
-            problems.append(f"{name} is not frozen ({artifacts.get(name, UNSET)!r}); ")
+        value = artifacts.get(name)
+        if name.endswith("_sha256"):
+            if not isinstance(value, str) or not DIGEST_PATTERN.fullmatch(value):
+                problems.append(f"{name} is not a 64-character lowercase SHA-256 digest ({value!r}); ")
+        elif not is_frozen(value):
+            problems.append(f"{name} is not frozen ({value!r}); ")
     return [p.rstrip("; ") for p in problems]
 
 
