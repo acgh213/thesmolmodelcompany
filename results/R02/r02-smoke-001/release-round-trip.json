@@ -1,0 +1,37 @@
+{
+  "asset_name": "r02-persist-probe.bin.518aea3ad697f6e3",
+  "authorization": {
+    "approved_at_utc": "2026-09-21T02:57:02Z",
+    "approved_by": "vesper",
+    "granted": true,
+    "note": "Operator go/no-go for the R02 readiness smoke only, relayed to eido by pyrrha. Not authorization for training, tuning, evaluation, or any experiment.",
+    "operator_go": "cassie",
+    "record_created_at_utc": "2026-09-21T03:03:52Z",
+    "reference": "PR #19 (merged dbad39e), review #43 APPROVED",
+    "run_id": "r02-smoke-001",
+    "scope": "r02-release-round-trip"
+  },
+  "cleanup": {
+    "errors": [],
+    "release_absent": true,
+    "release_deleted": true,
+    "retained": false,
+    "tag_deleted": true
+  },
+  "error": "UNSET",
+  "finished_at_utc": "2026-09-21T03:09:51Z",
+  "kind": "r02-release-round-trip",
+  "readback_bytes": 1048576,
+  "readback_method": "GET /repos/smolmodelco/thesmolmodelcompany/releases/3 (separate call, not the upload response)",
+  "readback_sha256": "518aea3ad697f6e3b977d5384a8a819ef05d1e51efc170ccc6aa094b83bd76a7",
+  "readback_uri": "https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/releases/download/r02-persist-r02-smoke-001-20260921T030947Z-a97305eb/r02-persist-probe.bin.518aea3ad697f6e3",
+  "retained": false,
+  "run_id": "r02-smoke-001",
+  "source_bytes": 1048576,
+  "source_path": "<SCRATCH_ROOT>/r02-smoke-001/r02-persist-probe.bin",
+  "source_sha256": "518aea3ad697f6e3b977d5384a8a819ef05d1e51efc170ccc6aa094b83bd76a7",
+  "started_at_utc": "2026-09-21T03:09:47Z",
+  "state": "draft-prerelease",
+  "tag": "r02-persist-r02-smoke-001-20260921T030947Z-a97305eb",
+  "verified": true
+}

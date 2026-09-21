@@ -35,3 +35,14 @@ and no run has produced them.
 
 Raw predictions, logs and large outputs are git-ignored. Store them in durable
 artifact storage and reference them by URI and hash in `manifest.json`.
+
+## Device-smoke runs (R02)
+
+R02 attempts live under `results/R02/<run-id>/` and carry more than a report:
+the approval record the attempt ran under, the artifact manifest with its
+per-file revision, size and SHA-256, the timestamped resource samples, the run
+manifest, and the run report. `raw/` and `predictions/` stay git-ignored, and a
+failed attempt keeps its own directory instead of being overwritten. The layout,
+the ownership, and the replay commands are defined in
+[the R02 recipe](../configs/r02-baseline-environment.md), which is the
+reproducibility boundary for those runs.

@@ -1,0 +1,506 @@
+{
+  "authorization": {
+    "approved_at_utc": "2026-09-21T02:57:02Z",
+    "approved_by": "vesper",
+    "granted": true,
+    "note": "Operator go/no-go for the R02 readiness smoke only, relayed to eido by pyrrha. Not authorization for training, tuning, evaluation, or any experiment.",
+    "operator_go": "cassie",
+    "record_created_at_utc": "2026-09-21T03:03:52Z",
+    "reference": "PR #19 (merged dbad39e), review #43 APPROVED",
+    "run_id": "r02-smoke-001",
+    "scope": "r02-readiness-smoke"
+  },
+  "exit_status": "ok",
+  "failure": {
+    "enforcement": "UNSET",
+    "kind": "UNSET",
+    "message": "UNSET",
+    "stage": "UNSET"
+  },
+  "finished_at_utc": "2026-09-21T03:11:19Z",
+  "generation": {
+    "logits_all_finite": true,
+    "output_text_sha256": "7bb6c4b1716b6c28056635cc6f1f190f81ac8cb9131b9eae36e17c00eaddde31",
+    "output_token_count": 8,
+    "stop_reason": "max_new_tokens"
+  },
+  "kind": "r02-readiness-smoke",
+  "model": {
+    "device": "cuda:0",
+    "device_reported": "NVIDIA GeForce RTX 3080",
+    "precision": "bfloat16",
+    "repo_id": "Qwen/Qwen2.5-1.5B",
+    "revision": "8faed761d45a263340a0528343f099c05c9a4323"
+  },
+  "owner": "eido",
+  "plan": {
+    "artifact_manifest_path": "results/R02/r02-smoke-001/artifact-manifest.json",
+    "cache_state": "cold",
+    "device": "cuda:0",
+    "max_new_tokens": 8,
+    "owner": "eido",
+    "precision": "bfloat16",
+    "prompt": "The capital of France is",
+    "prompt_sha256": "bbaff4d2ecd5892d4a442b0f53131641bf6e6f284761dd20fc0664bc97145762",
+    "repo_id": "Qwen/Qwen2.5-1.5B",
+    "revision": "8faed761d45a263340a0528343f099c05c9a4323",
+    "run_id": "r02-smoke-001",
+    "seed": 0,
+    "wall_clock_cap_seconds": 1200
+  },
+  "readiness": {
+    "checks": {
+      "device_matches_plan": true,
+      "logits_all_finite": true,
+      "model_produced_output_tokens": true,
+      "tokenizer_produced_input_tokens": true
+    },
+    "failed_checks": [],
+    "not_established": [
+      "inference fit does not demonstrate training fit",
+      "one smoke run is not a throughput or resource measurement of record"
+    ],
+    "readiness_ok": true
+  },
+  "resources": {
+    "kind": "r02-resource-sampling",
+    "labels": {
+      "errors": "a sample with status 'error' carries no reading: value UNSET and a redacted error",
+      "peak_claims": "filled in only from a device peak counter, and the basis names the window it covered",
+      "sampled_max": "maximum over the sampled instants only; not a peak measurement",
+      "scope": "GPU figures describe the shared GPU, RAM figures describe the execution target"
+    },
+    "method": {
+      "clock": "system UTC clock, read once per sampling instant",
+      "instant_count": 2,
+      "instants": [
+        "2026-09-21T03:10:09Z",
+        "2026-09-21T03:11:19Z"
+      ],
+      "interval_seconds": "UNSET",
+      "probes": [
+        {
+          "basis": "UNSET",
+          "command": "nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv,noheader,nounits",
+          "kind": "sample",
+          "name": "nvidia-smi",
+          "units": {
+            "gpu_utilization_pct": "%",
+            "vram_total_mib": "MiB",
+            "vram_used_mib": "MiB"
+          }
+        },
+        {
+          "basis": "UNSET",
+          "command": "/proc/meminfo (MemAvailable, MemTotal)",
+          "kind": "sample",
+          "name": "proc-meminfo",
+          "units": {
+            "ram_available_mib": "MiB",
+            "ram_total_mib": "MiB"
+          }
+        },
+        {
+          "basis": "device peak counter, reset at run start before any load and read after the generation step: the window covers tokenizer load, model load and generation",
+          "command": "torch.cuda.reset_peak_memory_stats() before any load, then max_memory_allocated() / max_memory_reserved() after the generation step",
+          "kind": "peak-counter",
+          "name": "torch.cuda peak counters",
+          "units": {
+            "vram_peak_allocated_mib": "MiB",
+            "vram_peak_reserved_mib": "MiB"
+          }
+        }
+      ]
+    },
+    "peak_claims": {
+      "gpu_utilization_pct": {
+        "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+        "source_kind": "sample",
+        "units": "%",
+        "value": "UNSET"
+      },
+      "ram_available_mib": {
+        "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+        "source_kind": "sample",
+        "units": "MiB",
+        "value": "UNSET"
+      },
+      "ram_total_mib": {
+        "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+        "source_kind": "sample",
+        "units": "MiB",
+        "value": "UNSET"
+      },
+      "vram_peak_allocated_mib": {
+        "basis": "device peak counter, reset at run start before any load and read after the generation step: the window covers tokenizer load, model load and generation",
+        "source_kind": "peak-counter",
+        "units": "MiB",
+        "value": 3003.0830078125
+      },
+      "vram_peak_reserved_mib": {
+        "basis": "device peak counter, reset at run start before any load and read after the generation step: the window covers tokenizer load, model load and generation",
+        "source_kind": "peak-counter",
+        "units": "MiB",
+        "value": 3178.0
+      },
+      "vram_total_mib": {
+        "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+        "source_kind": "sample",
+        "units": "MiB",
+        "value": "UNSET"
+      },
+      "vram_used_mib": {
+        "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+        "source_kind": "sample",
+        "units": "MiB",
+        "value": "UNSET"
+      }
+    },
+    "peak_labelled_metrics": [
+      "vram_peak_allocated_mib",
+      "vram_peak_reserved_mib"
+    ],
+    "probe_errors": [],
+    "sampled": {
+      "gpu_utilization_pct": {
+        "count": 2,
+        "errors": 0,
+        "first": 0.0,
+        "last": 15.0,
+        "min": 0.0,
+        "readings": 2,
+        "sampled_max": 15.0,
+        "source": "nvidia-smi",
+        "units": "%"
+      },
+      "ram_available_mib": {
+        "count": 2,
+        "errors": 0,
+        "first": 22927.39453125,
+        "last": 21855.19921875,
+        "min": 21855.19921875,
+        "readings": 2,
+        "sampled_max": 22927.39453125,
+        "source": "proc-meminfo",
+        "units": "MiB"
+      },
+      "ram_total_mib": {
+        "count": 2,
+        "errors": 0,
+        "first": 24037.16796875,
+        "last": 24037.16796875,
+        "min": 24037.16796875,
+        "readings": 2,
+        "sampled_max": 24037.16796875,
+        "source": "proc-meminfo",
+        "units": "MiB"
+      },
+      "vram_peak_allocated_mib": {
+        "count": 1,
+        "errors": 0,
+        "first": 3003.0830078125,
+        "last": 3003.0830078125,
+        "min": 3003.0830078125,
+        "readings": 1,
+        "sampled_max": 3003.0830078125,
+        "source": "torch.cuda peak counters",
+        "units": "MiB"
+      },
+      "vram_peak_reserved_mib": {
+        "count": 1,
+        "errors": 0,
+        "first": 3178.0,
+        "last": 3178.0,
+        "min": 3178.0,
+        "readings": 1,
+        "sampled_max": 3178.0,
+        "source": "torch.cuda peak counters",
+        "units": "MiB"
+      },
+      "vram_total_mib": {
+        "count": 2,
+        "errors": 0,
+        "first": 10240.0,
+        "last": 10240.0,
+        "min": 10240.0,
+        "readings": 2,
+        "sampled_max": 10240.0,
+        "source": "nvidia-smi",
+        "units": "MiB"
+      },
+      "vram_used_mib": {
+        "count": 2,
+        "errors": 0,
+        "first": 1248.0,
+        "last": 4696.0,
+        "min": 1248.0,
+        "readings": 2,
+        "sampled_max": 4696.0,
+        "source": "nvidia-smi",
+        "units": "MiB"
+      }
+    },
+    "samples": [
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "vram_used_mib",
+        "source": "nvidia-smi",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:10:09Z",
+        "units": "MiB",
+        "value": 1248.0
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "vram_total_mib",
+        "source": "nvidia-smi",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:10:09Z",
+        "units": "MiB",
+        "value": 10240.0
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "gpu_utilization_pct",
+        "source": "nvidia-smi",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:10:09Z",
+        "units": "%",
+        "value": 0.0
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "ram_total_mib",
+        "source": "proc-meminfo",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:10:09Z",
+        "units": "MiB",
+        "value": 24037.16796875
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "ram_available_mib",
+        "source": "proc-meminfo",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:10:09Z",
+        "units": "MiB",
+        "value": 22927.39453125
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "vram_used_mib",
+        "source": "nvidia-smi",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:11:19Z",
+        "units": "MiB",
+        "value": 4696.0
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "vram_total_mib",
+        "source": "nvidia-smi",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:11:19Z",
+        "units": "MiB",
+        "value": 10240.0
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "gpu_utilization_pct",
+        "source": "nvidia-smi",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:11:19Z",
+        "units": "%",
+        "value": 15.0
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "ram_total_mib",
+        "source": "proc-meminfo",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:11:19Z",
+        "units": "MiB",
+        "value": 24037.16796875
+      },
+      {
+        "error": "UNSET",
+        "kind": "sample",
+        "metric": "ram_available_mib",
+        "source": "proc-meminfo",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:11:19Z",
+        "units": "MiB",
+        "value": 21855.19921875
+      },
+      {
+        "error": "UNSET",
+        "kind": "peak-counter",
+        "metric": "vram_peak_allocated_mib",
+        "source": "torch.cuda peak counters",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:11:19Z",
+        "units": "MiB",
+        "value": 3003.0830078125
+      },
+      {
+        "error": "UNSET",
+        "kind": "peak-counter",
+        "metric": "vram_peak_reserved_mib",
+        "source": "torch.cuda peak counters",
+        "status": "ok",
+        "timestamp_utc": "2026-09-21T03:11:19Z",
+        "units": "MiB",
+        "value": 3178.0
+      }
+    ],
+    "status": "ok"
+  },
+  "retried": false,
+  "run_id": "r02-smoke-001",
+  "samples_post": [
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_used_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:11:19Z",
+      "units": "MiB",
+      "value": 4696.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_total_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:11:19Z",
+      "units": "MiB",
+      "value": 10240.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "gpu_utilization_pct",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:11:19Z",
+      "units": "%",
+      "value": 15.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_total_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:11:19Z",
+      "units": "MiB",
+      "value": 24037.16796875
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_available_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:11:19Z",
+      "units": "MiB",
+      "value": 21855.19921875
+    },
+    {
+      "error": "UNSET",
+      "kind": "peak-counter",
+      "metric": "vram_peak_allocated_mib",
+      "source": "torch.cuda peak counters",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:11:19Z",
+      "units": "MiB",
+      "value": 3003.0830078125
+    },
+    {
+      "error": "UNSET",
+      "kind": "peak-counter",
+      "metric": "vram_peak_reserved_mib",
+      "source": "torch.cuda peak counters",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:11:19Z",
+      "units": "MiB",
+      "value": 3178.0
+    }
+  ],
+  "samples_pre": [
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_used_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:10:09Z",
+      "units": "MiB",
+      "value": 1248.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_total_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:10:09Z",
+      "units": "MiB",
+      "value": 10240.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "gpu_utilization_pct",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:10:09Z",
+      "units": "%",
+      "value": 0.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_total_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:10:09Z",
+      "units": "MiB",
+      "value": 24037.16796875
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_available_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:10:09Z",
+      "units": "MiB",
+      "value": 22927.39453125
+    }
+  ],
+  "started_at_utc": "2026-09-21T03:10:07Z",
+  "timing": {
+    "cap_enforcement": "sigalrm armed: the cap raises inside the interpreter and aborts the run",
+    "cold_load_seconds": 70.0,
+    "tokenizer_load_seconds": 5.0,
+    "wall_clock_cap_seconds": 1200,
+    "wall_clock_seconds": 72.0,
+    "warm_inference_seconds": 2.0
+  },
+  "tokenizer": {
+    "input_token_count": 5,
+    "vocab_size": 151643
+  }
+}

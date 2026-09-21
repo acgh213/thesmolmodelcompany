@@ -32,4 +32,4 @@ Only after the authored-library result, add abstraction discovery from training 
 
 ## Recipe decisions before execution
 
-R01 selects an exact checkpoint. R03 fixes generators/scorers/splits in [its protocol](../docs/R03-generator-scorer-split-protocol.md), pending Research A review. R04 supplies prompts, operation grammar, runtime caps, sample counts after a pilot, and the full config using templates/experiment.md. No executable recipe exists yet.
+R01 selects an exact checkpoint. R03 fixes generators/scorers/splits in [its protocol](../docs/R03-generator-scorer-split-protocol.md), now merged and independently reviewed. E01 freezes the first controlled records baseline in [its protocol](../configs/e01-protocol.md), with a reviewed prompt renderer and execution runner; the first result remains pending. Later matrix conditions and reusable-library follow-ons remain future work.
