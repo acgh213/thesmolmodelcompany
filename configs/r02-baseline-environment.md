@@ -305,6 +305,20 @@ The eventual run binds the helpers to the exact commands above and writes its ma
 
 Bootstrap resolution means only that the pinned environment and upstream revision resolve during the first authorized setup. It is not evidence of model quality or a reconstruction. Later independent reconstruction must start from this recipe, rebuild the clean environment, re-fetch the pinned revision, recompute hashes, and compare its manifest independently.
 
+## Reviewed implementation boundaries
+
+The named commands now have model-free, fail-closed entry points: `configs/r02_fetch_and_hash.py` exposes `fetch_and_hash(fetch, repo_id, revision, out)` with an injected fetch transport and hashes every returned file; its CLI refuses to retrieve artifacts without an explicitly authorized transport. `configs/r02_smoke.py` exposes `create_run_directory()` (fresh-only) and `write_manifest()` while its CLI refuses model execution without an explicitly authorized run. These scripts are scaffolds and do not claim bootstrap resolution, model loading, inference, or measured resource values.
+
+`python3 scripts/r02_release.py` is represented by `scripts/r02_release.py`: `release_round_trip(source, transport)` creates a release, uploads the probe, reads an asset URL back through a separate transport method, downloads and hashes the bytes, compares size and digest, and deletes the release in `finally`. The Forgejo transport is intentionally injectable; the unit test uses a local fake and makes no network or credential call. Live Forgejo persistence remains a separate review gate and is not claimed by this branch.
+
+A run directory is created only by `create_run_directory(results_root, run_id)` and fails if the directory already exists. `write_manifest()` records explicit `UNSET` fields until an authorized run supplies measurements. Peak VRAM/RAM sampling is a documented future measurement boundary, not an implemented or executed claim: the smoke entry point refuses execution, and no GPU, model, or artifact work was performed.
+
+The pure boundary tests are:
+
+```bash
+python3 -m unittest tests.test_r02_boundaries -v
+```
+
 ## What this recipe does not establish
 
 - Nothing has been installed, downloaded, loaded, or executed under it. Every
