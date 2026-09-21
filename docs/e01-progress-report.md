@@ -23,8 +23,8 @@ yet produced a reviewable E01 run record, so the results ledger remains empty.
 - **E01 execution:** one greedy generation per episode, maximum 256 new tokens,
   no tuning, no retry, no ablation, and explicit error classes for missing,
   invalid, schema-invalid, or mismatched output.
-- **Operator record:** the exact `e01-pilot-001` go/no-go is recorded in
-  Forgejo issue #21; it remains unspent until the reviewed runner executes.
+- **Operator record:** the exact `e01-pilot-001` go/no-go is held outside Git;
+  its full record is published in Forgejo issue #21 comment [#966](https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/issues/21#issuecomment-966), after the prompt/runner approval and merge. It remains unspent until the reviewed runner executes.
 
 ## Frozen provenance
 
