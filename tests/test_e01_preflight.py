@@ -37,6 +37,14 @@ def record(**overrides):
     return data
 
 
+def unfrozen_plan_file(directory):
+    plan = json.loads(PLAN_PATH.read_text(encoding="utf-8"))
+    plan["artifacts"] = {name: "UNSET" for name in plan["artifacts"]}
+    path = Path(directory) / "unfrozen-plan.json"
+    path.write_text(json.dumps(plan), encoding="utf-8")
+    return path
+
+
 def frozen_plan_file(directory):
     plan = json.loads(PLAN_PATH.read_text(encoding="utf-8"))
     plan["artifacts"] = {
@@ -69,7 +77,7 @@ class PreflightTests(unittest.TestCase):
         argv = [
             "--run-id", RUN_ID,
             "--owner", "eido",
-            "--plan", str(plan or PLAN_PATH),
+            "--plan", str(plan or unfrozen_plan_file(self.tmp)),
             "--r02-record", str(PIN_DIR),
             "--run-dir", RUN_DIR,
             "--authorization-file", str(self.auth),

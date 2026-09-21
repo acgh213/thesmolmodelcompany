@@ -35,6 +35,13 @@ def frozen_plan():
     return plan
 
 
+def unfrozen_plan():
+    """A deliberately unfrozen fixture for fail-closed tests."""
+    plan = frozen_plan()
+    plan["artifacts"] = {name: "UNSET" for name in plan["artifacts"]}
+    return plan
+
+
 class LoadPinTests(unittest.TestCase):
     def test_pin_is_read_from_the_merged_readiness_record(self):
         pin = load_pin(PIN_DIR)
@@ -116,17 +123,18 @@ class PlanTests(unittest.TestCase):
         self.assertEqual(plan["kind"], "e01-execution-plan")
         self.assertEqual(validate_declared_identity(plan["model"], self.pin), [])
 
-    def test_committed_plan_is_not_frozen(self):
-        # The executable form of "protocol freeze": on the merged main state the
-        # generator/scorer revisions are still UNSET, so the gate must not open.
-        problems = freeze_problems(load_plan(PLAN_PATH))
+    def test_unfrozen_fixture_is_rejected_on_the_freeze(self):
+        problems = freeze_problems(unfrozen_plan())
         self.assertEqual(len(problems), 4)
         self.assertTrue(any("generator_revision" in p for p in problems))
         self.assertTrue(any("scorer_revision" in p for p in problems))
 
-    def test_committed_plan_fails_validation_on_the_freeze(self):
-        problems = validate_plan(load_plan(PLAN_PATH), self.pin)
+    def test_unfrozen_fixture_fails_validation_on_the_freeze(self):
+        problems = validate_plan(unfrozen_plan(), self.pin)
         self.assertEqual(len(problems), 4)
+
+    def test_committed_plan_is_frozen_and_validates_clean(self):
+        self.assertEqual(validate_plan(load_plan(PLAN_PATH), self.pin), [])
 
     def test_frozen_plan_validates_clean(self):
         self.assertEqual(validate_plan(frozen_plan(), self.pin), [])

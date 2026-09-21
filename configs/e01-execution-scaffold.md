@@ -39,11 +39,11 @@ identity field is pinned rather than the revision alone, so a plan cannot swap
 
 **The freeze is executable.** `freeze_problems` refuses while the plan's
 `generator_revision`, `scorer_revision`, `episode_manifest_sha256` or
-`reference_answers_sha256` is still `UNSET`. On the current `main` state the
-[declared plan](../configs/e01-execution-plan.json) carries all four as `UNSET`,
-so the preflight refuses at the freeze check. That is the intended behaviour:
-it is the code form of "protocol freeze", and it clears only when Research B's
-protocol PR sets those fields.
+`reference_answers_sha256` is still `UNSET`. The protocol branch freezes all four:
+`records-v1`, `e01-records-scorer-v1`, and the byte hashes of the 32-episode
+candidate manifest and independent reference-answer file. Resource fields remain
+`UNSET` until the authorized run records measurements. The preflight also refuses
+any generated files whose bytes do not match those frozen hashes.
 
 ## What it does not do
 
