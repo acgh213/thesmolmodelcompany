@@ -29,8 +29,11 @@ def frozen_plan():
     plan["artifacts"] = {
         "generator_revision": "r03-records-v1",
         "scorer_revision": "r03-records-v1",
+        "prompt_renderer_revision": "e01-prompt-v1",
+        "runner_revision": "e01-runner-v1",
         "episode_manifest_sha256": "a" * 64,
         "reference_answers_sha256": "b" * 64,
+        "prompt_sha256": "c" * 64,
     }
     return plan
 
@@ -125,13 +128,16 @@ class PlanTests(unittest.TestCase):
 
     def test_unfrozen_fixture_is_rejected_on_the_freeze(self):
         problems = freeze_problems(unfrozen_plan())
-        self.assertEqual(len(problems), 4)
+        self.assertEqual(len(problems), 7)
         self.assertTrue(any("generator_revision" in p for p in problems))
         self.assertTrue(any("scorer_revision" in p for p in problems))
+        self.assertTrue(any("prompt_renderer_revision" in p for p in problems))
+        self.assertTrue(any("runner_revision" in p for p in problems))
+        self.assertTrue(any("prompt_sha256" in p for p in problems))
 
     def test_unfrozen_fixture_fails_validation_on_the_freeze(self):
         problems = validate_plan(unfrozen_plan(), self.pin)
-        self.assertEqual(len(problems), 4)
+        self.assertEqual(len(problems), 7)
 
     def test_committed_plan_is_frozen_and_validates_clean(self):
         self.assertEqual(validate_plan(load_plan(PLAN_PATH), self.pin), [])

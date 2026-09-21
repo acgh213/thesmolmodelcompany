@@ -59,14 +59,19 @@ REVISION_PATTERN = re.compile(r"\A[0-9a-f]{40}\Z")
 DIGEST_PATTERN = re.compile(r"\A[0-9a-f]{64}\Z")
 
 # Fields that must still be UNSET until the protocol is frozen and the run is
-# authorized. The generator/scorer revisions are Research B's apparatus; the two
-# digests are produced before model invocation, so an execution preflight that
-# sees them unset is looking at an unfrozen protocol.
+# authorized. The generator/scorer revisions, the prompt renderer and the runner
+# are the executable apparatus; the three digests are produced before model
+# invocation, so an execution preflight that sees any of them unset is looking at
+# an unfrozen protocol. ``*_sha256`` fields are checked as digests by
+# ``freeze_problems`` rather than merely for being set.
 UNFROZEN_FIELDS = (
     "generator_revision",
     "scorer_revision",
+    "prompt_renderer_revision",
+    "runner_revision",
     "episode_manifest_sha256",
     "reference_answers_sha256",
+    "prompt_sha256",
 )
 
 

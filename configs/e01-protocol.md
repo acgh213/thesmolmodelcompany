@@ -46,6 +46,37 @@ JSON array of result records with no surrounding prose. Decoding is greedy:
 no retries. Invalid JSON, a non-array, a missing output, or an exact mismatch is
 incorrect and receives an explicit error class.
 
+## Prompt and runner (frozen with this revision)
+
+This revision fixed the episodes, the scorer and the decoding limits but left the
+prompt unspecified. Issue #24 closes that gap. The renderer is `e01-prompt-v1`, and
+the complete rendered prompt is four parts concatenated with nothing between them:
+
+1. the instruction text, byte for byte:
+   `You are a deterministic JSON transformation executor. Apply the primitive operations to the supplied records. Return only one JSON array of result records, with no explanation or markdown.`
+2. the literal four-character header `\n\nTASK JSON:\n`;
+3. the canonical compact JSON of exactly `family`, `input` and `query`, taken from
+   the candidate payload;
+4. the literal four-character header `\n\nOUTPUT JSON:\n`.
+
+`declared_budget` is deliberately absent: it is a control record for the run
+manifest, not task content, and putting it in the prompt would vary a number that
+no condition in the E01 matrix changes. `support` and `presentation_variant` are
+absent because the frozen condition is the symbolic surface with no support
+examples. Scorer-side field names are rejected recursively before a byte is
+rendered.
+
+The execution plan freezes `prompt_renderer_revision`, the runner revision
+`e01-runner-v1`, and `prompt_sha256`: the SHA-256 over the rendered prompts for
+every frozen episode, in manifest order, each terminated by one newline. The
+runner re-verifies both input digests through the preflight before any model is
+loaded, and it loads only the pinned revision recorded above.
+
+The runner performs one deterministic generation per episode, records the raw
+prediction outside Git, and stops on the first failure rather than retrying. The
+frozen stop conditions are enforced where the runner can reach them: a digest,
+revision, identity or output-contract mismatch stops the run and preserves it.
+
 ## Scoring and evidence
 
 `e01-records-scorer-v1` parses predictions independently from the generator and

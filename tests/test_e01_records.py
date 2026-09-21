@@ -5,11 +5,14 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+# Do not put scripts/ on sys.path. The script modules fall back to
+# ``scripts.<module>`` imports precisely so that every test sees one module
+# object per file; adding scripts/ here makes the first branch of that fallback
+# win for later test modules and loads a second copy of each module, which
+# breaks isinstance and exception-identity checks elsewhere (test_r02_smoke).
 sys.path.insert(0, str(ROOT / "src"))
 
-import e01_records
-import e01_score
+from scripts import e01_records, e01_score
 
 
 class E01RecordsProtocolTests(unittest.TestCase):
