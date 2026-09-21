@@ -1,0 +1,1 @@
+"""SMCo apparatus tests."""
