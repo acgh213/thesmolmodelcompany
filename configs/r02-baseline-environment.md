@@ -209,19 +209,19 @@ its measurements.
 python3 scripts/r02_artifacts.py fetch \
     --destination "$HOME/ml/models/qwen2.5-1.5b-8faed76" \
     --manifest-out results/R02/<run-id>/artifact-manifest.json \
-    --authorization-file results/R02/<run-id>/authorization.json
+    --authorization-file results/R02/<run-id>/authorization-fetch.json
 
 # Sequence check for the durable store: in-memory, no credential, no network.
 python3 scripts/r02_release.py self-test
 
 # The live persistence round trip, from the WSL execution target.
 python3 scripts/r02_release.py round-trip --source <artifact> \
-    --run-id <run-id> --authorization-file results/R02/<run-id>/authorization.json
+    --run-id <run-id> --authorization-file results/R02/<run-id>/authorization-release.json
 
 # The readiness smoke. --dry-run checks the gate and stops before any import.
 python3 scripts/r02_smoke.py --run-id r02-smoke-<nnn> --owner eido \
     --run-dir results/R02/r02-smoke-<nnn> \
-    --authorization-file results/R02/<run-id>/authorization.json
+    --authorization-file results/R02/<run-id>/authorization-smoke.json
 ```
 
 No command accepts a token, key, or password as an argument, and the fetch path
@@ -377,11 +377,11 @@ authorized run:
 
 ```
 results/R02/<run-id>/
-    authorization.json      # committed: the approval this attempt ran under
+    authorization-*.json    # committed: one scoped approval per gated step
     manifest.json           # committed: the run manifest required by coordination.md
     artifact-manifest.json  # committed: per-file revision, byte size, and SHA-256
     resource-samples.json   # committed: the sample series with UTC timestamps
-    report.md               # committed: the run report and ledger front matter
+    smoke-report.md         # committed: the readiness report, deliberately not a ledger entry
     raw/                    # git-ignored: full logs and stdout
     predictions/            # git-ignored: raw outputs, never committed
 ```
@@ -397,30 +397,47 @@ artifact too large to commit is published to a Forgejo release asset and
 referenced in `manifest.json` by URI and SHA-256, with any credential-shaped
 part of the readback URI redacted before it is recorded.
 
+A readiness run writes `smoke-report.md`, never a `report.md`:
+`scripts/build_results_ledger.py` collects every `results/*/*/report.md` as an
+experiment result, and a readiness smoke is not one. A run that does assert a
+result is a different kind of run and follows the ledger convention in
+[results/README.md](../results/README.md).
+
 Replay, from a rebuilt environment: `scripts/r02_artifacts.py fetch` against the
 committed `artifact-manifest.json`, so a mismatch fails loudly instead of
-passing silently; then `scripts/r02_smoke.py` under an `authorization.json` the
-reproducing agent obtained for its own run; then
-`python3 scripts/build_results_ledger.py` after `report.md` is written.
+passing silently; then `scripts/r02_smoke.py` under an `authorization-smoke.json`
+the reproducing agent obtained for its own run; then
+`python3 scripts/build_results_ledger.py --check`, which must stay clean.
 
 ## What this recipe does not establish
 
-- Nothing has been installed, downloaded, loaded, or executed under it. Every
-  dependency version and the entire retrieval path are **unverified by
-  execution** at the time of review.
-- The dependency set is carried over from a working environment for a different
-  project on the same host. It is a well-founded starting point, not proof that
-  these versions resolve together for a freshly created 3.12.3 environment.
-- No claim is made that Qwen2.5-1.5B fits, loads, or runs on this host. That is
-  precisely what the authorized smoke is for.
-- The artifact hash values do not exist yet and cannot until the first fetch.
+- Until `r02-smoke-001`, nothing had been installed, downloaded, loaded, or
+  executed under this recipe. That run installed the pinned set without floating
+  a version, fetched and hashed the artifacts, and completed the smoke; the
+  record is in `results/R02/r02-smoke-001/`. The versions are therefore verified
+  **by execution on this host**, which is not the same as a guarantee that they
+  resolve for another host or interpreter.
+- The dependency set was carried over from a working environment for a different
+  project on the same host. `r02-smoke-001` showed it resolves and installs
+  exactly as pinned in a freshly created 3.12.3 environment on this host, so for
+  this host it is no longer only a starting point; for another host or
+  interpreter it still is.
+- "It fits and runs here, once" is all that `r02-smoke-001` shows. It is a
+  readiness result on one prompt at one precision, not a fit claim for other
+  settings, longer contexts, batches, or training.
+- The artifact hash values are now recorded as **first observations**
+  (`results/R02/r02-smoke-001/artifact-manifest.json`). They are not yet
+  confirmed by an independent reproduction; that is what a reproduction
+  compares against.
 - An inference fit would not demonstrate a training fit, and this recipe makes
   no training claim.
-- The executable paths have not been exercised against a live service or a
-  model: no artifact has been fetched, no release asset has been uploaded, no
-  model has been loaded, and no smoke run has been performed. Their tests use
-  injected fakes only, and their live behaviour is exactly what the review gate
-  in issue #17 exists to pin down before the operator decides.
+- The executable paths were exercised for the first time by `r02-smoke-001`
+  (2026-09-21): the pinned artifacts were fetched and hashed, a probe release
+  was uploaded, read back, verified and cleaned up, and the model was loaded and
+  answered one inference. See
+  [the run report](../results/R02/r02-smoke-001/smoke-report.md). That run
+  establishes readiness and nothing else: no experiment result, no ledger entry,
+  and no claim about a candidate.
 - The artifact-hash, VRAM-peak, and cold-load fields in a run manifest stay
   `UNSET` until a run measures them. A sampled maximum is recorded as a sampled
   maximum, never relabelled a peak.

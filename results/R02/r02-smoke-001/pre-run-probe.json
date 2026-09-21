@@ -1,0 +1,286 @@
+{
+  "kind": "r02-resource-sampling",
+  "labels": {
+    "errors": "a sample with status 'error' carries no reading: value UNSET and a redacted error",
+    "peak_claims": "filled in only from a device peak counter, and the basis names the window it covered",
+    "sampled_max": "maximum over the sampled instants only; not a peak measurement",
+    "scope": "GPU figures describe the shared GPU, RAM figures describe the execution target"
+  },
+  "method": {
+    "clock": "system UTC clock, read once per sampling instant",
+    "instant_count": 3,
+    "instants": [
+      "2026-09-21T03:09:37Z",
+      "2026-09-21T03:09:42Z",
+      "2026-09-21T03:09:47Z"
+    ],
+    "interval_seconds": 5.0,
+    "probes": [
+      {
+        "basis": "UNSET",
+        "command": "nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu --format=csv,noheader,nounits",
+        "kind": "sample",
+        "name": "nvidia-smi",
+        "units": {
+          "gpu_utilization_pct": "%",
+          "vram_total_mib": "MiB",
+          "vram_used_mib": "MiB"
+        }
+      },
+      {
+        "basis": "UNSET",
+        "command": "/proc/meminfo (MemAvailable, MemTotal)",
+        "kind": "sample",
+        "name": "proc-meminfo",
+        "units": {
+          "ram_available_mib": "MiB",
+          "ram_total_mib": "MiB"
+        }
+      }
+    ]
+  },
+  "peak_claims": {
+    "gpu_utilization_pct": {
+      "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+      "source_kind": "sample",
+      "units": "%",
+      "value": "UNSET"
+    },
+    "ram_available_mib": {
+      "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+      "source_kind": "sample",
+      "units": "MiB",
+      "value": "UNSET"
+    },
+    "ram_total_mib": {
+      "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+      "source_kind": "sample",
+      "units": "MiB",
+      "value": "UNSET"
+    },
+    "vram_total_mib": {
+      "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+      "source_kind": "sample",
+      "units": "MiB",
+      "value": "UNSET"
+    },
+    "vram_used_mib": {
+      "basis": "not measured: only periodic samples are available, so the sampled_max is a lower bound on any peak",
+      "source_kind": "sample",
+      "units": "MiB",
+      "value": "UNSET"
+    }
+  },
+  "peak_labelled_metrics": [],
+  "probe_errors": [],
+  "sampled": {
+    "gpu_utilization_pct": {
+      "count": 3,
+      "errors": 0,
+      "first": 0.0,
+      "last": 0.0,
+      "min": 0.0,
+      "readings": 3,
+      "sampled_max": 0.0,
+      "source": "nvidia-smi",
+      "units": "%"
+    },
+    "ram_available_mib": {
+      "count": 3,
+      "errors": 0,
+      "first": 23196.00390625,
+      "last": 23192.98046875,
+      "min": 23192.98046875,
+      "readings": 3,
+      "sampled_max": 23198.15234375,
+      "source": "proc-meminfo",
+      "units": "MiB"
+    },
+    "ram_total_mib": {
+      "count": 3,
+      "errors": 0,
+      "first": 24037.16796875,
+      "last": 24037.16796875,
+      "min": 24037.16796875,
+      "readings": 3,
+      "sampled_max": 24037.16796875,
+      "source": "proc-meminfo",
+      "units": "MiB"
+    },
+    "vram_total_mib": {
+      "count": 3,
+      "errors": 0,
+      "first": 10240.0,
+      "last": 10240.0,
+      "min": 10240.0,
+      "readings": 3,
+      "sampled_max": 10240.0,
+      "source": "nvidia-smi",
+      "units": "MiB"
+    },
+    "vram_used_mib": {
+      "count": 3,
+      "errors": 0,
+      "first": 1248.0,
+      "last": 1248.0,
+      "min": 1248.0,
+      "readings": 3,
+      "sampled_max": 1248.0,
+      "source": "nvidia-smi",
+      "units": "MiB"
+    }
+  },
+  "samples": [
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_used_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:37Z",
+      "units": "MiB",
+      "value": 1248.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_total_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:37Z",
+      "units": "MiB",
+      "value": 10240.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "gpu_utilization_pct",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:37Z",
+      "units": "%",
+      "value": 0.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_total_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:37Z",
+      "units": "MiB",
+      "value": 24037.16796875
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_available_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:37Z",
+      "units": "MiB",
+      "value": 23196.00390625
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_used_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:42Z",
+      "units": "MiB",
+      "value": 1248.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_total_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:42Z",
+      "units": "MiB",
+      "value": 10240.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "gpu_utilization_pct",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:42Z",
+      "units": "%",
+      "value": 0.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_total_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:42Z",
+      "units": "MiB",
+      "value": 24037.16796875
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_available_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:42Z",
+      "units": "MiB",
+      "value": 23198.15234375
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_used_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:47Z",
+      "units": "MiB",
+      "value": 1248.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "vram_total_mib",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:47Z",
+      "units": "MiB",
+      "value": 10240.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "gpu_utilization_pct",
+      "source": "nvidia-smi",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:47Z",
+      "units": "%",
+      "value": 0.0
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_total_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:47Z",
+      "units": "MiB",
+      "value": 24037.16796875
+    },
+    {
+      "error": "UNSET",
+      "kind": "sample",
+      "metric": "ram_available_mib",
+      "source": "proc-meminfo",
+      "status": "ok",
+      "timestamp_utc": "2026-09-21T03:09:47Z",
+      "units": "MiB",
+      "value": 23192.98046875
+    }
+  ],
+  "status": "ok"
+}
