@@ -134,7 +134,8 @@ this table, is the authoritative dependency record for reproduction.
 
 This PR is a preflight design only. It records the pinned environment, artifact identity and hashing requirements, persistence decision, clean-state expectations, and the manifest fields that a later authorized execution procedure must implement. It does not contain executable artifact retrieval, model smoke, or release-asset transport commands.
 
-A separate executable-procedure issue/PR must be reviewed and approved before any package installation, artifact retrieval, model loading, inference, GPU reservation, or live persistence check. That follow-up must bind its implementation and tests to this recipe without treating this design review as execution authorization.
+A separate executable-procedure issue/PR must be reviewed and approved before any package installation, artifact retrieval, model loading, inference, GPU reservation, or live persistence check performed under this recipe. That follow-up must bind
+its implementation and tests to this recipe without treating this design review as execution authorization.
 
 ## Clean state and cold cache
 
@@ -175,7 +176,7 @@ host is an inference and parameter-efficient-adaptation machine per decision
 external account would widen the credential surface without a present need.
 Hugging Face remains the upstream *source*, which the pinned revision requires.
 
-### Persistence check — performed, not asserted
+### Persistence check — observed once, not replayable from this PR
 
 Issue #7 requires that persistence be verified before a run whose output cannot
 be cheaply reproduced. The check was executed from the WSL execution target on
@@ -192,15 +193,24 @@ be cheaply reproduced. The check was executed from the WSL execution target on
 6. The probe release and its tag were deleted; the repository was confirmed to
    hold zero releases afterwards, and local scratch was removed.
 
-Storage is therefore verified as durable and byte-exact for this path. The
-check is repeatable: it is a create, upload, re-read, verify, delete cycle
-using only the repository-scoped credential.
+No command in this PR performs this check, and nothing from it survives to
+inspect: the probe release, its tag, and the local scratch files were all
+deleted. The numbered record above is therefore a one-off observation by the
+author, not a replayable verification, and it does not close issue #7
+deliverable 4.
+
+The durable-storage *decision* above stands as design. Live verification is an
+acceptance criterion of the follow-up executable-procedure gate, which must
+supply a replayable command, a retained probe or its metadata, and a readback
+URI with digests.
 
 ### Credential boundary
 
 The `eido` Forgejo credential is held in the Windows Git Credential Manager,
-host-scoped to `durandal.exe.xyz`, and is reachable from WSL through that same
-store so there is one credential rather than two. It is never embedded in a
+host-scoped to `durandal.exe.xyz`, and was observed reachable from WSL through
+that same store during this preflight, so there is one credential rather than
+two. That reachability is a local observation; it is not re-established by any
+command in this PR. It is never embedded in a
 remote URL, never written to the repository, and never passed on a command
 line. API calls pass it through a `curl` configuration file, because process
 arguments are readable by other processes on the host.
@@ -242,7 +252,10 @@ to be recorded rather than retried away:
 
 ## Model-free preflight helpers
 
-The repository retains only the model-free `scripts/r02_preflight.py` helpers: streaming SHA-256, an explicit-`UNSET` manifest scaffold, and a local test-only persistence round-trip. These helpers do not retrieve artifacts, execute a model, contact Forgejo, or claim live persistence. Their tests are limited to pure local behavior.
+The repository retains only the model-free `scripts/r02_preflight.py` helpers: streaming SHA-256, an explicit-`UNSET` manifest scaffold, a local test-only
+persistence round-trip, and an importable `fetch_and_hash` seam that raises
+`NotImplementedError` and is intentionally never invoked
+(`scripts/r02_preflight.py:33-35`). These helpers do not retrieve artifacts, execute a model, contact Forgejo, or claim live persistence. Their tests are limited to pure local behavior.
 
 The executable fetch/hash, smoke, and Forgejo-release procedures are intentionally out of scope for this PR and must be introduced under a separate review gate.
 
