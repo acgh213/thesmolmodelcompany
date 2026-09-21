@@ -71,9 +71,38 @@ def tracking_reference(initial: State, trace: Sequence[Action]) -> State:
     return state
 
 
+def _planning_successor_reference(state: State, action: Action) -> State:
+    """Reference-only transition used by BFS; never calls tracking_reference."""
+    current = dict(state)
+    variable = action["variable"]
+    if variable not in current:
+        raise ValueError(f"unknown variable: {variable}")
+    if action["kind"] == "flip":
+        current[variable] = 1 - current[variable]
+    elif action["kind"] == "set" and action["value"] in (0, 1):
+        current[variable] = action["value"]
+    else:
+        raise ValueError(f"invalid planning action: {action}")
+    return freeze_state(current)
+
+
+def _planning_successor_generator(state: State, action: Action) -> State:
+    """Generator-side transition kept separate from the BFS reference."""
+    current = thaw_state(state)
+    if action["variable"] not in current:
+        raise ValueError(f"unknown variable: {action['variable']}")
+    if action["kind"] == "flip":
+        current[action["variable"]] ^= 1
+    elif action["kind"] == "set":
+        current[action["variable"]] = int(action["value"])
+    else:
+        raise ValueError(f"invalid planning action: {action}")
+    return freeze_state(current)
+
+
 def _successors(state: State, actions: Sequence[Action]) -> Iterable[tuple[str, State]]:
     for action in actions:
-        yield str(action["name"]), tracking_reference(state, (action,))
+        yield str(action["name"]), _planning_successor_reference(state, action)
 
 
 def planning_reference(initial: State, goal: State, actions: Sequence[Action], max_horizon: int = 4) -> int | None:
@@ -96,7 +125,7 @@ def planning_reference(initial: State, goal: State, actions: Sequence[Action], m
     return None
 
 
-def _planning_generate(initial: State, goal: State, actions: Sequence[Action], horizon: int) -> int:
+def _planning_generate(initial: State, goal: State, actions: Sequence[Action], horizon: int) -> int | None:
     """Generate a shortest length with an independent depth-limited search."""
     def search(state: State, remaining: int) -> int | None:
         if state == goal:
@@ -105,15 +134,12 @@ def _planning_generate(initial: State, goal: State, actions: Sequence[Action], h
             return None
         lengths = []
         for action in actions:
-            candidate = search(tracking_reference(state, (action,)), remaining - 1)
+            candidate = search(_planning_successor_generator(state, action), remaining - 1)
             if candidate is not None:
                 lengths.append(candidate + 1)
         return min(lengths) if lengths else None
 
-    result = search(initial, horizon)
-    if result is None:
-        raise ValueError("generated planning task is unreachable")
-    return result
+    return search(initial, horizon)
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,10 +178,16 @@ def generate_planning_task(seed: int, max_horizon: int = 4) -> FiniteStateTask:
     actions = _catalog(variables)
     initial = freeze_state({name: rng.randrange(2) for name in variables})
     goal_values = dict(initial)
-    changed = rng.choice(variables)
-    goal_values[changed] = 1 - goal_values[changed]
+    for changed in variables:
+        if rng.randrange(2):
+            goal_values[changed] = 1 - goal_values[changed]
+    if goal_values == dict(initial):
+        changed = rng.choice(variables)
+        goal_values[changed] = 1 - goal_values[changed]
     goal = freeze_state(goal_values)
     answer = _planning_generate(initial, goal, actions, max_horizon)
+    if answer is None:
+        raise ValueError("generated planning task exceeded its horizon")
     return FiniteStateTask(seed, "planning", initial, goal=goal, actions=actions, answer=answer)
 
 
@@ -165,7 +197,12 @@ def task_episode(task: FiniteStateTask, split: str = "development") -> Episode:
         answer = dict(task.answer)
         latent = {"kind": task.kind, "actions": list(task.actions)}
     else:
-        visible = {"kind": task.kind, "initial": dict(task.initial), "goal": dict(task.goal or ())}
+        visible = {
+            "kind": task.kind,
+            "initial": dict(task.initial),
+            "goal": dict(task.goal or ()),
+            "actions": list(task.actions),
+        }
         answer = {"shortest_length": task.answer}
         latent = {"kind": task.kind, "actions": list(task.actions)}
     return Episode(
@@ -190,16 +227,20 @@ def task_episode(task: FiniteStateTask, split: str = "development") -> Episode:
 def _assert_tracking_answer(task: FiniteStateTask) -> None:
     if task.kind != "tracking":
         raise ValueError("tracking answer requested for non-tracking task")
-    if tracking_generate(task.initial, task.trace) != task.answer:
-        raise AssertionError("generator tracking answer changed")
+    generated = tracking_generate(task.initial, task.trace)
+    referenced = tracking_reference(task.initial, task.trace)
+    if generated != referenced or generated != task.answer:
+        raise AssertionError("tracking generator/reference disagree")
 
 
 
 def _assert_planning_answer(task: FiniteStateTask) -> None:
     if task.kind != "planning" or task.goal is None:
         raise ValueError("planning answer requested for non-planning task")
-    if planning_reference(task.initial, task.goal, task.actions, 4) != task.answer:
-        raise AssertionError("reference planning answer changed")
+    generated = _planning_generate(task.initial, task.goal, task.actions, 4)
+    referenced = planning_reference(task.initial, task.goal, task.actions, 4)
+    if generated != referenced or generated != task.answer:
+        raise AssertionError("planning generator/reference disagree")
 
 
 
@@ -226,11 +267,11 @@ def _all_states() -> tuple[State, ...]:
 
 
 def small_state_audit() -> list[dict[str, Any]]:
-    """Exhaustively compare 1,036 traces: 4 states × 6 actions^(0..3)."""
+    """Exhaustively compare 6,220 traces: 4 states × 6 actions^(0..4)."""
     actions = _catalog(("x", "y"))
     failures: list[dict[str, Any]] = []
     for initial in _all_states():
-        for length in range(4):
+        for length in range(5):
             for trace in product(actions, repeat=length):
                 generated = tracking_generate(initial, trace)
                 referenced = tracking_reference(initial, trace)
@@ -240,17 +281,14 @@ def small_state_audit() -> list[dict[str, Any]]:
 
 
 def small_planning_audit() -> list[dict[str, Any]]:
-    """Compare independent shortest solvers over all 16 state/goal pairs."""
-    actions = _catalog(("x", "y"))
+    """Compare independent solvers over 32 pairs: two catalogs × 16 states."""
+    catalogs = (_catalog(("x", "y")), (_catalog(("x", "y"))[0],))
     failures: list[dict[str, Any]] = []
-    for initial in _all_states():
-        for goal in _all_states():
-            generated = None
-            try:
+    for actions in catalogs:
+        for initial in _all_states():
+            for goal in _all_states():
                 generated = _planning_generate(initial, goal, actions, 4)
-            except ValueError:
-                pass
-            referenced = planning_reference(initial, goal, actions, 4)
-            if generated != referenced:
-                failures.append({"initial": initial, "goal": goal, "generated": generated, "referenced": referenced})
+                referenced = planning_reference(initial, goal, actions, 4)
+                if generated != referenced:
+                    failures.append({"initial": initial, "goal": goal, "generated": generated, "referenced": referenced})
     return failures

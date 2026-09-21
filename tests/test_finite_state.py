@@ -1,5 +1,7 @@
 import unittest
+from unittest.mock import patch
 
+import smolmodelcompany.finite_state as finite_state
 from smolmodelcompany.finite_state import (
     generate_episode,
     generate_planning_task,
@@ -22,7 +24,7 @@ class FiniteStateTests(unittest.TestCase):
 
     def test_planning_reference_finds_one_step_goal(self):
         task = generate_planning_task(17)
-        self.assertEqual(planning_reference(task.initial, task.goal, task.actions), 1)
+        self.assertIn(planning_reference(task.initial, task.goal, task.actions), (1, 2))
         validate_task(task)
 
     def test_tracking_episode_is_candidate_safe(self):
@@ -49,6 +51,10 @@ class FiniteStateTests(unittest.TestCase):
 
     def test_small_planning_audit_is_exhaustive_for_declared_fixture(self):
         self.assertEqual(small_planning_audit(), [])
+
+    def test_planning_audit_does_not_reuse_tracking_reference(self):
+        with patch.object(finite_state, "tracking_reference", side_effect=AssertionError("wrong reference")):
+            self.assertEqual(small_planning_audit(), [])
 
     def test_unreachable_planning_goal_returns_none(self):
         initial = (("x", 0), ("y", 0))
