@@ -289,6 +289,22 @@ to be recorded rather than retried away:
 - Wall-time cap for a local smoke is 20 minutes per `compute.md`; exceeding it
   is itself a recorded failure.
 
+## Model-free preflight helpers
+
+The repository includes `scripts/r02_preflight.py`, with no model imports and no invocation of artifact retrieval. `sha256_stream(path)` reads fixed-size chunks and returns a SHA-256 digest. `persistence_round_trip(source, storage_dir)` writes a probe into a run-local persistence directory, reads and hashes it back, compares byte count and digest, and removes the persisted copy in a `finally` block. `build_manifest()` supplies a scaffold in which every not-yet-measured value is explicitly `UNSET`; it includes peak VRAM, peak RAM, stored and loaded footprint, and cold-load/warm-inference timing fields. `fetch_and_hash` is an importable seam only and is not invoked by this preflight.
+
+The model-free checks are run with:
+
+```bash
+python3 -m unittest tests.test_r02_preflight -v
+python3 -m unittest discover -s tests -v
+python3 scripts/check_docs.py
+```
+
+The eventual run binds the helpers to the exact commands above and writes its manifest under `results/R02/<run-id>/manifest.json`. The run directory is fresh per run; `.venv-r02` is recreated rather than reused; model cache state is recorded as cold or warm and is never silently treated as equivalent. Peak VRAM is sampled from `nvidia-smi` immediately before/after and during the run when available; peak host RAM is recorded from WSL `free -m`; stored footprint is the on-disk artifact bytes and loaded footprint is the resident loaded model representation, reported separately. Cold-load, warm-inference, and total wall timing are recorded independently.
+
+Bootstrap resolution means only that the pinned environment and upstream revision resolve during the first authorized setup. It is not evidence of model quality or a reconstruction. Later independent reconstruction must start from this recipe, rebuild the clean environment, re-fetch the pinned revision, recompute hashes, and compare its manifest independently.
+
 ## What this recipe does not establish
 
 - Nothing has been installed, downloaded, loaded, or executed under it. Every
