@@ -7,8 +7,8 @@ model or tokenizer artifact has been retrieved, and no smoke run has been
 performed under this recipe. This document is the reproducibility boundary
 submitted for review; the run is authorized only after that review.
 Follow-up gate: [issue #17](https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/issues/17)
-owns the executable procedures this design defers, and the executable pull
-request that cites this section is their binding review gate.
+owns the executable procedures this design defers. [PR #19](https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/pulls/19)
+is that executable pull request, and it is the binding review gate for them.
 
 ## Purpose
 
@@ -139,9 +139,9 @@ This document is the design half of R02: the pins, the artifact-identity
 requirements, the persistence decision, the clean-state expectations, and the
 manifest fields. The executable half is
 [issue #17](https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/issues/17),
-implemented by the executable pull request that cites this section.
+implemented by [PR #19](https://durandal.exe.xyz/smolmodelco/thesmolmodelcompany/pulls/19).
 
-**That pull request is the binding follow-up gate.** Merging this design did not
+**PR #19 is the binding follow-up gate.** Merging this design did not
 authorize a run, and merging the executable code does not either: #17 requires an
 independent approval from `vesper` of every command path, and only then does the
 operator record a go/no-go decision. Package installation, artifact retrieval,
@@ -150,7 +150,7 @@ consequences of that recorded decision, not of either merge.
 
 ### Executable procedure gate added by #17
 
-Five modules carry the executable paths. They are import-safe: importing any of
+PR #19 adds five modules that carry the executable paths. They are import-safe: importing any of
 them transfers no bytes, imports neither `torch` nor `transformers`, and touches
 no GPU. Each live entry point fails closed with exit code 2 unless it is given an
 approval record matching its scope.
@@ -189,7 +189,7 @@ Every live step reads a JSON approval record and refuses to start without one:
 The scopes are `r02-artifact-fetch`, `r02-readiness-smoke`, and
 `r02-release-round-trip`. A grant for one scope cannot be spent on another, and
 `granted: false`, a malformed record, or a missing file all fail closed. The
-operator writes the record after `vesper` approves the executable PR, and it is
+operator writes the record after `vesper` approves PR #19, and it is
 committed with the run so the approval a run executed under is readable next to
 its measurements.
 
