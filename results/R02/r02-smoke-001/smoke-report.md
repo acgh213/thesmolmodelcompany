@@ -281,7 +281,7 @@ loaded or removed, the GPU was not used, and the results ledger is unchanged
    23,192.98 MiB, so the range is **23,193–23,198 MiB** and the exact readings
    are now given. No measured value changed; only the summary of them.
 2. **Host-local absolute paths relabelled.** Eight committed files had
-   `/home/...` path strings replaced with the labels documented above
+   absolute path strings beginning at the operator's home directory were replaced with the labels documented above
    (`<VENV_ROOT>`, `<FETCH_DESTINATION>`, `<HF_CACHE_ROOT>`, `<SCRATCH_ROOT>`,
    and the repository-relative `results/R02/r02-smoke-001/...`). The strings
    changed were identifiers of *where files live*, never a digest, a byte count,
