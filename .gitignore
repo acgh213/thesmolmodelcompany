@@ -41,10 +41,11 @@ __pycache__/
 hf_cache/
 wandb/
 
-# Environments
+# Environments and local packaging metadata
 .venv/
 venv/
 env/
+*.egg-info/
 .env
 .env.*
 !.env.example
