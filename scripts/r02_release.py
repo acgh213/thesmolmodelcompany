@@ -217,7 +217,10 @@ def round_trip(
         download_url = asset.get("browser_download_url")
         if not isinstance(download_url, str) or not download_url:
             raise ReleaseError("the read-back GET returned no download URL for the asset")
-        record["readback_uri"] = download_url
+        # A forge may sign asset URLs with a query parameter. The manifest is
+        # committed, so the URL is recorded with any credential-shaped part
+        # replaced; the live value is used in memory only.
+        record["readback_uri"] = redact_secrets(download_url)
 
         readback_path = scratch / asset_name
         transport.download(url=download_url, destination=readback_path)

@@ -152,8 +152,17 @@ consequences of that recorded decision, not of either merge.
 
 PR #19 adds five modules that carry the executable paths. They are import-safe: importing any of
 them transfers no bytes, imports neither `torch` nor `transformers`, and touches
-no GPU. Each live entry point fails closed with exit code 2 unless it is given an
-approval record matching its scope.
+no GPU. Each entry point that reaches the network, a model library or the GPU --
+`r02_artifacts.py fetch`, `r02_smoke.py`, and `r02_release.py round-trip` --
+fails closed with exit code 2 unless it is given an approval record matching its
+scope. `r02_artifacts.py plan`, `r02_resources.py probe` and
+`r02_release.py self-test` are deliberately ungated because they transfer
+nothing, import no model library and touch no GPU.
+
+The read-only `probe` is also the one entry point whose documented job is to
+fail *with a record* rather than to refuse: on a host without `nvidia-smi` it
+prints a sampling record whose affected metrics carry `value: UNSET`,
+`status: "error"` and a redacted `error`, and exits 1. It does not raise.
 
 | Module | Responsibility | Entry point |
 |---|---|---|
@@ -210,13 +219,19 @@ python3 scripts/r02_release.py round-trip --source <artifact> \
     --run-id <run-id> --authorization-file results/R02/<run-id>/authorization.json
 
 # The readiness smoke. --dry-run checks the gate and stops before any import.
-python3 scripts/r02_smoke.py --run-id <run-id> --run-dir results/R02/<run-id> \
+python3 scripts/r02_smoke.py --run-id r02-smoke-<nnn> --owner eido \
+    --run-dir results/R02/r02-smoke-<nnn> \
     --authorization-file results/R02/<run-id>/authorization.json
 ```
 
 No command accepts a token, key, or password as an argument, and the fetch path
 refuses to run at all while an ambient Hugging Face token is present, so that
 the provenance of the bytes it retrieved cannot be ambiguous.
+
+The smoke's `--run-id` must match `r02-smoke-<nnn>` and `--run-dir` must end
+with `results/R02/<run-id>`; anything else is rejected with exit code 2 before
+any setup. The owner is supplied on the command line and recorded from the plan
+rather than assumed, so a manifest cannot inherit another agent's ownership.
 
 ## Clean state and cold cache
 
@@ -317,7 +332,11 @@ by [coordination.md](../docs/coordination.md):
 - hardware: GPU name, VRAM total, CPU, RAM available at run time;
 - seed; precision; context and output limits;
 - elapsed time, separating cold load from warm inference;
-- peak VRAM and peak host RAM;
+- peak VRAM and peak host RAM, each with the basis that earned the peak claim:
+  the VRAM peak comes from a device peak counter that is reset at run start, so
+  its window covers tokenizer load, model load and generation, and the recorded
+  basis says so; host RAM has no peak counter, so it is recorded as a
+  `sampled_max` over the sampled instants and the peak field stays `UNSET`;
 - **stored footprint and loaded footprint reported separately**, not active
   parameter count alone;
 - artifact URIs and hashes; exit status.
@@ -325,14 +344,25 @@ by [coordination.md](../docs/coordination.md):
 Failure handling is explicit, because the acceptance criteria require failures
 to be recorded rather than retried away:
 
-- The first OOM, missing file, version mismatch, non-finite value, or
-  non-termination stops the run.
+- The first OOM, missing file, version mismatch, non-finite value, or failed
+  resource probe stops the run, including a failure in the pre-load sampling
+  instant: that instant sits inside the same failure boundary as the loads, and
+  a probe that cannot be read produces a recorded failure
+  (`resource-probe-unavailable`) rather than an exception.
 - The failure is written into the run directory as the result, with the command
   and the observed error, and the ledger entry reflects it.
 - A retry after a diagnosed fix is a new run ID that links to the prior one. A
   failed run is never overwritten or silently re-attempted until it passes.
-- Wall-time cap for a local smoke is 20 minutes per `compute.md`; exceeding it
-  is itself a recorded failure.
+- Wall-time cap for a local smoke is 20 minutes per `compute.md`. The cap is
+  armed as a `SIGALRM` before the run, so a stage that returns control to the
+  interpreter is aborted *at* the cap and still produces a failure record whose
+  `failure.enforcement` reads `aborted by the armed guard at the cap`. A stage
+  blocked inside a C call is not interrupted by a signal; that case is detected
+  only after the call returns, and the record says so instead
+  (`detected after the stage returned`). Both outcomes are failures that keep
+  their measurements. A run killed from outside (`SIGKILL`, or a supervisor's
+  `timeout`) writes nothing: the cap is enforced in-process, and an externally
+  killed run is recorded by whoever killed it, not by this procedure.
 
 ## Model-free preflight helpers
 
@@ -357,11 +387,15 @@ results/R02/<run-id>/
 ```
 
 `<run-id>` is `r02-smoke-<nnn>`. A failed attempt keeps its own directory: the
-first OOM, hash mismatch, or non-terminating step stops that run and is written
-as its result. A diagnosed retry is a new ID that names the prior one in
-`manifest.json` rather than overwriting it. Model weights and tokenizer files
-never enter Git; an artifact too large to commit is published to a Forgejo
-release asset and referenced in `manifest.json` by URI and SHA-256.
+first OOM, hash mismatch, probe failure or cap breach stops that run and is
+written as its result, with whatever it had already measured. The
+`manifest.json` above is therefore written for a failed attempt exactly as it is
+for a successful one, and `main` writes it for every outcome it can reach. A
+diagnosed retry is a new ID that names the prior one in `manifest.json` rather
+than overwriting it. Model weights and tokenizer files never enter Git; an
+artifact too large to commit is published to a Forgejo release asset and
+referenced in `manifest.json` by URI and SHA-256, with any credential-shaped
+part of the readback URI redacted before it is recorded.
 
 Replay, from a rebuilt environment: `scripts/r02_artifacts.py fetch` against the
 committed `artifact-manifest.json`, so a mismatch fails loudly instead of

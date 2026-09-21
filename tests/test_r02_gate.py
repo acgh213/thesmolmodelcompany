@@ -121,6 +121,15 @@ class RedactionTests(unittest.TestCase):
         text = redact_secrets("using hf_ABCDEFGHIJKLMNOP in the header")
         self.assertNotIn("hf_ABCDEFGHIJKLMNOP", text)
 
+    def test_signed_url_parameters_are_redacted(self):
+        text = redact_secrets(
+            "https://forge.invalid/asset?X-Amz-Signature=deadbeefcafe1234"
+            "&X-Amz-Credential=AKIAEXAMPLE&name=probe.bin"
+        )
+        self.assertNotIn("deadbeefcafe1234", text)
+        self.assertNotIn("AKIAEXAMPLE", text)
+        self.assertIn("name=probe.bin", text)
+
     def test_bearer_style_values_without_a_colon_are_redacted(self):
         text = redact_secrets("Authorization Bearer abcdef123456 completed")
         self.assertNotIn("abcdef123456", text)

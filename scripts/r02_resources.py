@@ -10,19 +10,27 @@ separated in the data itself:
 
 * every observation carries its own UTC timestamp, its probe, and the exact
   command or source it came from;
-* a metric is labelled a **peak** only when a device peak *counter* produced it
-  (``torch.cuda.max_memory_allocated`` and friends). Periodic polling yields a
-  **sampled max** and leaves the peak field ``UNSET`` with a stated basis.
-  A sampled maximum understates a peak, and the record says so.
+* a metric is labelled a **peak** only when a device peak *counter* produced it,
+  and the recorded basis names the window that counter actually covered. A
+  periodic poll yields a **sampled max** and leaves the peak field ``UNSET``
+  with a stated basis, because a sampled maximum understates a peak;
+* a probe that cannot be read is a *recorded* failure, not an exception: the
+  instant produces samples with ``value: UNSET``, ``status: "error"`` and a
+  redacted ``error``, the summary is marked ``degraded``, and the entry point
+  exits non-zero with that record instead of a traceback. A missing ``nvidia-smi``
+  must not be able to destroy the record of the run that needed it.
 
 The two default probes are read-only. Polling them allocates nothing and
-reserves nothing, which is why ``probe`` can be run as a host audit under
-``docs/compute.md`` without an approval record; the model-touching peak-counter
+reserves nothing, which is why ``probe`` runs as a host audit under
+``docs/compute.md`` and is deliberately ungated; the model-touching peak-counter
 probe is only ever constructed after the readiness-smoke gate.
 
 Usage, from the repository root:
 
     python3 scripts/r02_resources.py probe --instants 3 --interval 5 --out FILE
+
+Exit codes: 0 every probe answered, 1 at least one probe failed (the record is
+still written), 2 a usage error.
 """
 
 from __future__ import annotations
@@ -37,8 +45,10 @@ from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 
 try:  # bare script (sys.path[0] is scripts/) or scripts/ already on sys.path
+    from r02_gate import EXIT_OK, EXIT_STEP_FAILED, redact_secrets
     from r02_preflight import UNSET
 except ModuleNotFoundError:  # imported as scripts.<module> from the repository root
+    from scripts.r02_gate import EXIT_OK, EXIT_STEP_FAILED, redact_secrets
     from scripts.r02_preflight import UNSET
 
 KIND = "r02-resource-sampling"
@@ -46,19 +56,34 @@ KIND = "r02-resource-sampling"
 SAMPLE = "sample"
 PEAK_COUNTER = "peak-counter"
 
+SAMPLE_OK = "ok"
+SAMPLE_ERROR = "error"
+
+STATUS_OK = "ok"
+STATUS_DEGRADED = "degraded"
+STATUS_FAILED = "failed"
+
 NVIDIA_SMI_COMMAND = (
     "nvidia-smi --query-gpu=memory.used,memory.total,utilization.gpu "
     "--format=csv,noheader,nounits"
 )
 MEMINFO_COMMAND = "/proc/meminfo (MemAvailable, MemTotal)"
 TORCH_PEAK_COMMAND = (
-    "torch.cuda.reset_peak_memory_stats() at run start, then "
-    "max_memory_allocated() / max_memory_reserved() at run end"
+    "torch.cuda.reset_peak_memory_stats() before any load, then "
+    "max_memory_allocated() / max_memory_reserved() after the generation step"
+)
+TORCH_PEAK_BASIS = (
+    "device peak counter, reset at run start before any load and read after the "
+    "generation step: the window covers tokenizer load, model load and generation"
 )
 
 
 def _utc_now() -> str:
     return _dt.datetime.now(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+class ResourceProbeUnavailable(RuntimeError):
+    """A probe could not be read, so a required resource figure is missing."""
 
 
 @dataclass(frozen=True)
@@ -70,6 +95,7 @@ class Probe:
     kind: str
     units: Mapping[str, str]
     read: Callable[[], Mapping[str, float]]
+    basis: str = UNSET
 
     def to_record(self) -> dict[str, Any]:
         return {
@@ -77,17 +103,22 @@ class Probe:
             "command": self.command,
             "kind": self.kind,
             "units": dict(self.units),
+            "basis": self.basis,
         }
 
 
 @dataclass(frozen=True)
 class Sample:
+    """One reading at one instant. An unreadable probe yields ``value: UNSET``."""
+
     timestamp_utc: str
     source: str
     kind: str
     metric: str
-    value: float
+    value: Any
     units: str
+    status: str = SAMPLE_OK
+    error: str = UNSET
 
     def to_record(self) -> dict[str, Any]:
         return {
@@ -97,6 +128,8 @@ class Sample:
             "metric": self.metric,
             "value": self.value,
             "units": self.units,
+            "status": self.status,
+            "error": self.error,
         }
 
 
@@ -161,7 +194,9 @@ def memory_probe(*, reader: Callable[[], str] | None = None) -> Probe:
     )
 
 
-def torch_peak_probe(*, torch_module: Any = None) -> Probe:
+def torch_peak_probe(
+    *, torch_module: Any = None, basis: str = TORCH_PEAK_BASIS
+) -> Probe:
     """Device peak counters. The import happens inside ``read``, after the gate."""
 
     def read() -> dict[str, float]:
@@ -180,6 +215,7 @@ def torch_peak_probe(*, torch_module: Any = None) -> Probe:
         kind=PEAK_COUNTER,
         units={"vram_peak_allocated_mib": "MiB", "vram_peak_reserved_mib": "MiB"},
         read=read,
+        basis=basis,
     )
 
 
@@ -192,7 +228,10 @@ class ResourceSampler:
     """Collects timestamped samples from injected probes.
 
     ``sample_once`` reads every probe at one instant under a single clock read,
-    so samples in one instant share a timestamp rather than drifting apart.
+    so samples in one instant share a timestamp rather than drifting apart. It
+    never raises: a probe that cannot be read produces error samples and an entry
+    in ``probe_errors``, because a missing measurement must be visible in the
+    record rather than replace it.
     """
 
     def __init__(
@@ -204,6 +243,7 @@ class ResourceSampler:
         self.probes = tuple(probes) if probes is not None else default_probes()
         self._clock = clock
         self.samples: list[Sample] = []
+        self.probe_errors: list[dict[str, Any]] = []
 
     def add_probe(self, probe: Probe) -> None:
         self.probes = (*self.probes, probe)
@@ -212,23 +252,44 @@ class ResourceSampler:
         timestamp = self._clock()
         instant: list[Sample] = []
         for probe in self.probes:
-            for metric, value in probe.read().items():
-                unit = probe.units.get(metric, UNSET)
+            try:
+                readings = probe.read()
+                status, error = SAMPLE_OK, UNSET
+            except Exception as exc:  # recorded, never propagated: see the docstring
+                readings = {metric: UNSET for metric in probe.units}
+                status = SAMPLE_ERROR
+                error = redact_secrets(exc)
+                self.probe_errors.append(
+                    {
+                        "timestamp_utc": timestamp,
+                        "source": probe.name,
+                        "command": probe.command,
+                        "error": error,
+                    }
+                )
+            for metric, value in readings.items():
                 instant.append(
                     Sample(
                         timestamp_utc=timestamp,
                         source=probe.name,
                         kind=probe.kind,
                         metric=metric,
-                        value=float(value),
-                        units=unit,
+                        value=float(value) if status == SAMPLE_OK else UNSET,
+                        units=probe.units.get(metric, UNSET),
+                        status=status,
+                        error=error,
                     )
                 )
         self.samples.extend(instant)
         return instant
 
     def summary(self, *, interval_seconds: float | None = None) -> dict[str, Any]:
-        return summarize(self.samples, probes=self.probes, interval_seconds=interval_seconds)
+        return summarize(
+            self.samples,
+            probes=self.probes,
+            interval_seconds=interval_seconds,
+            probe_errors=self.probe_errors,
+        )
 
 
 def summarize(
@@ -236,35 +297,40 @@ def summarize(
     *,
     probes: Sequence[Probe] = (),
     interval_seconds: float | None = None,
+    probe_errors: Sequence[Mapping[str, Any]] = (),
 ) -> dict[str, Any]:
     """Build the record: sampled statistics first, peak claims only where earned."""
-    peak_metrics: dict[str, str] = {}
+    peak_basis: dict[str, str] = {}
     for probe in probes:
         if probe.kind == PEAK_COUNTER:
             for metric in probe.units:
-                peak_metrics[metric] = probe.name
+                peak_basis[metric] = probe.basis if probe.basis != UNSET else (
+                    f"device peak counter ({probe.name})"
+                )
 
     instants = sorted({sample.timestamp_utc for sample in samples})
     sampled: dict[str, dict[str, Any]] = {}
     peaks: dict[str, dict[str, Any]] = {}
     for metric in sorted({sample.metric for sample in samples}):
-        values = [sample.value for sample in samples if sample.metric == metric]
-        first = samples[[s.metric for s in samples].index(metric)]
+        metric_samples = [sample for sample in samples if sample.metric == metric]
+        values = [sample.value for sample in metric_samples if sample.status == SAMPLE_OK]
+        first = metric_samples[0]
         sampled[metric] = {
-            "count": len(values),
+            "count": len(metric_samples),
+            "readings": len(values),
+            "errors": len(metric_samples) - len(values),
             "units": first.units,
             "source": first.source,
-            "first": values[0],
-            "last": values[-1],
-            "min": min(values),
-            "sampled_max": max(values),
+            "first": values[0] if values else UNSET,
+            "last": values[-1] if values else UNSET,
+            "min": min(values) if values else UNSET,
+            "sampled_max": max(values) if values else UNSET,
         }
-        if metric in peak_metrics:
+        if metric in peak_basis:
+            basis = peak_basis[metric]
             peaks[metric] = {
-                "value": max(values),
-                "basis": (
-                    f"device peak counter ({peak_metrics[metric]}), reset at run start"
-                ),
+                "value": max(values) if values else UNSET,
+                "basis": basis if values else f"{basis} (no reading was available)",
                 "source_kind": PEAK_COUNTER,
                 "units": first.units,
             }
@@ -279,8 +345,10 @@ def summarize(
                 "units": first.units,
             }
 
+    errors = [dict(entry) for entry in probe_errors]
     return {
         "kind": KIND,
+        "status": STATUS_DEGRADED if errors else STATUS_OK,
         "method": {
             "clock": "system UTC clock, read once per sampling instant",
             "interval_seconds": interval_seconds if interval_seconds is not None else UNSET,
@@ -290,12 +358,14 @@ def summarize(
         },
         "sampled": sampled,
         "peak_claims": peaks,
-        "peak_labelled_metrics": sorted(peak_metrics),
+        "peak_labelled_metrics": sorted(peak_basis),
         "labels": {
             "sampled_max": "maximum over the sampled instants only; not a peak measurement",
-            "peak_claims": "filled in only from a device peak counter; UNSET otherwise",
+            "peak_claims": "filled in only from a device peak counter, and the basis names the window it covered",
             "scope": "GPU figures describe the shared GPU, RAM figures describe the execution target",
+            "errors": "a sample with status 'error' carries no reading: value UNSET and a redacted error",
         },
+        "probe_errors": errors,
         "samples": [sample.to_record() for sample in samples],
     }
 
@@ -312,25 +382,39 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def main(argv: Sequence[str] | None = None) -> int:
+def main(argv: Sequence[str] | None = None, *, sampler_factory: Callable[[], ResourceSampler] = ResourceSampler) -> int:
+    """Sample and write the record. A probe failure is recorded, not raised.
+
+    ``sampler_factory`` is a test seam: the tests drive this entry point with a
+    failing probe without depending on the host's hardware.
+    """
     args = build_parser().parse_args(argv)
 
-    sampler = ResourceSampler()
-    for index in range(max(1, args.instants)):
-        if index and args.interval > 0:
-            import time
+    try:
+        sampler = sampler_factory()
+        for index in range(max(1, args.instants)):
+            if index and args.interval > 0:
+                import time
 
-            time.sleep(args.interval)
-        sampler.sample_once()
+                time.sleep(args.interval)
+            sampler.sample_once()
+        payload = sampler.summary(interval_seconds=args.interval or None)
+    except Exception as exc:  # last resort: a record, never a traceback
+        payload = {
+            "kind": KIND,
+            "status": STATUS_FAILED,
+            "error": redact_secrets(exc),
+            "probe_errors": [],
+            "samples": [],
+        }
 
-    payload = json.dumps(
-        sampler.summary(interval_seconds=args.interval or None), indent=2, sort_keys=True
-    ) + "\n"
+    text = json.dumps(payload, indent=2, sort_keys=True) + "\n"
     if args.out:
-        Path(args.out).write_text(payload, encoding="utf-8")
+        Path(args.out).write_text(text, encoding="utf-8")
     else:
-        sys.stdout.write(payload)
-    return 0
+        sys.stdout.write(text)
+
+    return EXIT_OK if payload["status"] == STATUS_OK else EXIT_STEP_FAILED
 
 
 if __name__ == "__main__":

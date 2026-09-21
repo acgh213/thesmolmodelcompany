@@ -7,9 +7,12 @@ Two boundaries live here, and both fail closed.
 
 1. **Authorization.** A live step -- artifact fetch, readiness smoke, or release
    round trip -- runs only when the caller supplies an authorization record with
-   ``granted: true`` *and* an exact scope match. Every entry point evaluates
-   this gate before importing a model library, opening a socket, or touching
-   the GPU, so an unapproved invocation cannot produce a side effect.
+   ``granted: true`` *and* an exact scope match. Each of those three entry points
+   evaluates this gate before importing a model library, opening a socket, or
+   touching the GPU, so an unapproved invocation cannot produce a side effect.
+   Three other entry points are deliberately ungated because they transfer
+   nothing, import no model library, and touch no GPU: ``r02_artifacts.py plan``,
+   ``r02_resources.py probe`` and ``r02_release.py self-test``.
 
 2. **Credential hygiene.** ``redact_secrets`` makes text safe to log or record,
    and ``credential_environment_conflicts`` refuses a public-artifact fetch
@@ -62,7 +65,8 @@ REDACTED = "REDACTED"
 _SCHEME_WORDS = {"bearer", "token", "basic", "apikey", "api_key", "key"}
 
 _KEY_VALUE = re.compile(
-    r"(?i)\b(token|api[_-]?key|password|passwd|secret|authorization|bearer)\b"
+    r"(?i)\b(token|api[_-]?key|password|passwd|secret|signature|credential|sig"
+    r"|authorization|bearer)\b"
     r"(\s*[:=]\s*)"
     r"(\"?)([^\s\"'&,;]+)"
     r"(?:\s+([A-Za-z0-9._\-]{6,}))?"
@@ -211,8 +215,10 @@ def credential_environment_conflicts(env: Mapping[str, str] | None = None) -> li
 def parse_authorization_argv(argv: list[str] | None = None) -> tuple[Authorization, str]:
     """CLI helper: ``--authorization-file`` -> (Authorization, path).
 
-    Kept here so every entry point resolves the gate the same way. Raises
-    ``GateClosed`` when the flag is absent, which is the fail-closed path.
+    Kept here so every entry point resolves the gate the same way. When the flag
+    is absent, argparse itself exits 2 without running the command; when the flag
+    is present but the record is missing, unreadable or malformed,
+    ``Authorization.from_file`` raises ``GateClosed``. Both are fail-closed.
     """
     import argparse
 

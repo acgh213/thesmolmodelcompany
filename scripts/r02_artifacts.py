@@ -18,8 +18,11 @@ Boundaries held deliberately:
 * **No model library.** Only the standard library is imported, so these helpers
   run in a fresh virtual environment with nothing installed.
 * **No implicit work.** Importing this module transfers nothing. A fetch happens
-  only through ``main()``, which requires an authorization file, and the
-  revision pin is checked *before* any byte is requested.
+  only through the ``fetch`` subcommand of ``main()``, which requires an
+  authorization file. Resolving the pin is a metadata ``GET``; no artifact
+  *content* is requested until the manifest, the credential environment and the
+  revision pin have all passed, and a manifest that names another repository,
+  source, precision or revision is refused before the transport is called.
 
 Usage, from the repository root:
 
@@ -79,6 +82,15 @@ REVISION = "8faed761d45a263340a0528343f099c05c9a4323"
 SOURCE = "huggingface"
 PRECISION = "bfloat16"
 LICENSE = UNSET  # recorded from the upstream card at the first authorized fetch
+
+# Every manifest field that states *which* artifact is being fetched is a pin.
+# A caller-supplied manifest may not quietly widen any of them.
+PINNED_FIELDS = {
+    "repo_id": REPO_ID,
+    "source": SOURCE,
+    "precision": PRECISION,
+    "requested_revision": REVISION,
+}
 
 KIND_MANIFEST = "r02-artifact-manifest"
 KIND_FETCH = "r02-artifact-fetch"
@@ -237,6 +249,11 @@ def validate_manifest(manifest: Mapping[str, Any]) -> list[str]:
     revision = manifest.get("requested_revision")
     if not isinstance(revision, str) or not REVISION_PATTERN.match(revision):
         errors.append("requested_revision must be a full 40-character commit SHA")
+    for field_name, pinned in PINNED_FIELDS.items():
+        if manifest.get(field_name) != pinned:
+            errors.append(
+                f"{field_name} must be the pinned value {pinned!r}, not {manifest.get(field_name)!r}"
+            )
     files = manifest.get("files")
     if not isinstance(files, list) or not files:
         errors.append("files must be a non-empty list")

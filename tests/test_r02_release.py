@@ -176,6 +176,30 @@ class RoundTripTests(unittest.TestCase):
         digest = "c" * 64
         self.assertEqual(asset_name_for(self.source, digest), f"manifest.json.{'c' * 16}")
 
+    def test_a_signed_readback_uri_is_recorded_redacted(self):
+        class SignedUrlTransport(InMemoryReleaseTransport):
+            def read_release(self, *, release_id):
+                release = dict(super().read_release(release_id=release_id))
+                release["assets"] = [
+                    dict(asset, browser_download_url=asset["browser_download_url"] + "?X-Amz-Signature=deadbeefcafe1234")
+                    for asset in release["assets"]
+                ]
+                return release
+
+            def download(self, *, url, destination):
+                return super().download(url=url.split("?", 1)[0], destination=destination)
+
+        record = round_trip(
+            source=self.source,
+            transport=SignedUrlTransport(),
+            tag="r02-persist-run-20260921T030000Z-abc12345",
+            run_id="r02-smoke-001",
+            workdir=self.tmp / "readback",
+        )
+        self.assertTrue(record["verified"])
+        self.assertNotIn("deadbeefcafe1234", record["readback_uri"])
+        self.assertIn(REDACTED, record["readback_uri"])
+
     def test_new_tag_is_unique_per_attempt(self):
         first = new_tag(run_id="r", clock=fixed_clock("2026-09-21T03:00:00Z"), nonce="aaaaaaaa")
         second = new_tag(run_id="r", clock=fixed_clock("2026-09-21T03:00:00Z"), nonce="bbbbbbbb")

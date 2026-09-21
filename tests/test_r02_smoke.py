@@ -8,25 +8,35 @@ fail-closed tests assert that the fake is never reached.
 import hashlib
 import io
 import json
+import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import time
 import unittest
 from contextlib import redirect_stderr
 from pathlib import Path
 
 from scripts.r02_gate import SCOPE_ARTIFACT_FETCH, SCOPE_READINESS_SMOKE, Authorization, GateClosed
 from scripts.r02_preflight import UNSET
-from scripts.r02_resources import PEAK_COUNTER, SAMPLE, Probe, ResourceSampler
+from scripts.r02_resources import KIND as RESOURCE_KIND
+from scripts.r02_resources import PEAK_COUNTER, SAMPLE, STATUS_DEGRADED, Probe, ResourceSampler
 from scripts.r02_smoke import (
+    CAP_ABORTED,
+    CAP_ENFORCEMENT_ARMED,
+    CAP_ENFORCEMENT_DETECTION,
     STATUS_FAILED,
     STATUS_OK,
     ModelAccess,
     ReadinessSmoke,
     SmokePlan,
+    WallClockCapExceeded,
     deferred_access,
     main,
+    validate_run_target,
     validate_smoke_record,
+    wall_clock_guard,
 )
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -66,12 +76,17 @@ class FakeTokenizer:
     vocab_size = 151936
 
 
-def fake_access(*, generation=None, fail_at=None):
+def fake_access(*, generation=None, fail_at=None, block_seconds=0.0):
     """A stand-in for every model-library and GPU call, with call accounting."""
 
     class FakeAccess:
         def __init__(self):
             self.calls = []
+
+        def reset_peak_counters(self, plan):
+            self.calls.append("reset_peak_counters")
+            if fail_at == "reset_peak_counters":
+                raise RuntimeError("simulated CUDA initialization failure")
 
         def load_tokenizer(self, plan):
             self.calls.append("load_tokenizer")
@@ -91,6 +106,8 @@ def fake_access(*, generation=None, fail_at=None):
 
         def generate(self, plan, model, tokenizer):
             self.calls.append("generate")
+            if block_seconds:
+                time.sleep(block_seconds)  # a stage that blocks inside the interpreter
             return generation or {
                 "input_token_count": 5,
                 "output_token_ids": [1, 2, 3],
@@ -113,6 +130,9 @@ def sentinel_access():
             self.calls.append(name)
             raise AssertionError(f"unapproved path reached {name}")
 
+        def reset_peak_counters(self, plan):
+            return self._refuse("reset_peak_counters")
+
         def load_tokenizer(self, plan):
             return self._refuse("load_tokenizer")
 
@@ -128,19 +148,42 @@ def sentinel_access():
     return SentinelAccess()
 
 
-def fake_sampler(*, clock):
-    return ResourceSampler(
-        [
-            Probe(
-                name="fake-nvidia-smi",
-                command="nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits",
-                kind=SAMPLE,
-                units={"vram_used_mib": "MiB"},
-                read=lambda: {"vram_used_mib": 900.0},
-            )
-        ],
-        clock=clock,
+def gpu_probe(read):
+    return Probe(
+        name="nvidia-smi",
+        command="nvidia-smi --query-gpu=memory.used --format=csv,noheader,nounits",
+        kind=SAMPLE,
+        units={"vram_used_mib": "MiB"},
+        read=read,
     )
+
+
+def fake_sampler(*, clock, probe=None):
+    return ResourceSampler([probe or gpu_probe(lambda: {"vram_used_mib": 900.0})], clock=clock)
+
+
+def exploding_probe(message="nvidia-smi could not be executed (simulated)"):
+    def boom():
+        raise FileNotFoundError(message)
+
+    return gpu_probe(boom)
+
+
+def exploding_sampler(*, clock, message="nvidia-smi could not be executed (simulated)"):
+    return fake_sampler(clock=clock, probe=exploding_probe(message))
+
+
+def flaky_probe(*, read_instants=1):
+    """Answers the first ``read_instants`` instants, then fails: the post-load case."""
+    seen = {"count": 0}
+
+    def read():
+        seen["count"] += 1
+        if seen["count"] > read_instants:
+            raise OSError("nvidia-smi timed out after the model load (simulated)")
+        return {"vram_used_mib": 900.0}
+
+    return gpu_probe(read)
 
 
 def fake_peak_probe():
@@ -150,13 +193,30 @@ def fake_peak_probe():
         kind=PEAK_COUNTER,
         units={"vram_peak_allocated_mib": "MiB"},
         read=lambda: {"vram_peak_allocated_mib": 4096.0},
+        basis="reset at run start (fake); covers the whole run",
     )
 
 
 def plan(**overrides):
-    data = {"run_id": "r02-smoke-test-001"}
+    data = {"run_id": "r02-smoke-001", "owner": "eido"}
     data.update(overrides)
     return SmokePlan(**data)
+
+
+def write_authorization(path, **overrides):
+    path.write_text(json.dumps(authorization(**overrides).to_record()), encoding="utf-8")
+    return path
+
+
+def run_smoke(access=None, sampler=None, *, clock_stamps=("2026-09-21T03:00:00Z", "2026-09-21T03:00:01Z"), **plan_overrides):
+    return ReadinessSmoke(
+        authorization=authorization(),
+        plan=plan(**plan_overrides),
+        access=access if access is not None else fake_access(),
+        sampler=sampler if sampler is not None else fake_sampler(clock=clock_for(*clock_stamps)),
+        peak_probe_factory=fake_peak_probe,
+        clock=clock_for(*clock_stamps),
+    ).run()
 
 
 class FailClosedTests(unittest.TestCase):
@@ -190,10 +250,21 @@ class FailClosedTests(unittest.TestCase):
             self.assertNotIn(name, sys.modules)
 
     def test_access_contract_is_explicit(self):
-        fields = set(ModelAccess.__dataclass_fields__)
         self.assertEqual(
-            fields, {"load_tokenizer", "load_model", "describe_device", "generate"}
+            set(ModelAccess.__dataclass_fields__),
+            {
+                "reset_peak_counters",
+                "load_tokenizer",
+                "load_model",
+                "describe_device",
+                "generate",
+            },
         )
+
+    def test_no_owner_constant_is_hardcoded(self):
+        import scripts.r02_smoke as smoke
+
+        self.assertFalse(hasattr(smoke, "OWNER"))
 
     def test_module_import_is_model_library_free(self):
         script = (
@@ -208,58 +279,74 @@ class FailClosedTests(unittest.TestCase):
 
 class SmokeRunTests(unittest.TestCase):
     def test_happy_path_records_a_valid_manifest(self):
-        runner_clock = clock_for(
-            "2026-09-21T03:00:00Z",
-            "2026-09-21T03:00:01Z",
-            "2026-09-21T03:00:20Z",
-            "2026-09-21T03:00:21Z",
-            "2026-09-21T03:00:22Z",
-            "2026-09-21T03:00:23Z",
-        )
-        sample_clock = clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:23Z")
         access = fake_access()
         record = ReadinessSmoke(
             authorization=authorization(),
             plan=plan(),
             access=access,
-            sampler=fake_sampler(clock=sample_clock),
+            sampler=fake_sampler(
+                clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:23Z")
+            ),
             peak_probe_factory=fake_peak_probe,
-            clock=runner_clock,
+            clock=clock_for(
+                "2026-09-21T03:00:00Z",
+                "2026-09-21T03:00:01Z",
+                "2026-09-21T03:00:20Z",
+                "2026-09-21T03:00:21Z",
+                "2026-09-21T03:00:22Z",
+                "2026-09-21T03:00:23Z",
+            ),
             resource_interval_seconds=5.0,
         ).run()
 
         self.assertEqual(
-            access.calls, ["load_tokenizer", "load_model", "describe_device", "generate"]
+            access.calls,
+            ["reset_peak_counters", "load_tokenizer", "load_model", "describe_device", "generate"],
         )
         self.assertEqual(record["exit_status"], STATUS_OK)
         self.assertEqual(record["failure"]["kind"], UNSET)
+        self.assertEqual(record["owner"], "eido")
         self.assertEqual(validate_smoke_record(record), [])
         self.assertEqual(
             record["generation"]["output_text_sha256"],
             hashlib.sha256(GENERATED_TEXT.encode()).hexdigest(),
         )
         self.assertEqual(record["generation"]["output_token_count"], 3)
+        self.assertNotIn("output_text", record["generation"])
+        self.assertNotIn("first_output_token_id", record["generation"])
         self.assertEqual(record["timing"]["cold_load_seconds"], 20.0)
         self.assertEqual(record["timing"]["warm_inference_seconds"], 1.0)
+        self.assertIn(
+            record["timing"]["cap_enforcement"], (CAP_ENFORCEMENT_ARMED, CAP_ENFORCEMENT_DETECTION)
+        )
         self.assertTrue(record["readiness"]["readiness_ok"])
         self.assertFalse(record["retried"])
-        self.assertEqual(record["model"]["device"], "cuda:0")
         self.assertEqual(record["model"]["device_reported"], "fake-gpu")
-        self.assertIn("vram_peak_allocated_mib", record["resources"]["peak_claims"])
+        claim = record["resources"]["peak_claims"]["vram_peak_allocated_mib"]
+        self.assertEqual(claim["value"], 4096.0)
+        self.assertIn("reset at run start", claim["basis"])
         self.assertEqual(record["resources"]["method"]["interval_seconds"], 5.0)
         self.assertEqual(len(record["samples_pre"]), 1)
         self.assertEqual(len(record["samples_post"]), 2)
 
+    def test_the_peak_counter_is_reset_before_any_load(self):
+        access = fake_access()
+        run_smoke(access=access)
+        self.assertEqual(access.calls[0], "reset_peak_counters")
+        self.assertLess(
+            access.calls.index("reset_peak_counters"), access.calls.index("load_tokenizer")
+        )
+        self.assertLess(access.calls.index("reset_peak_counters"), access.calls.index("load_model"))
+
+    def test_peak_reset_failure_is_a_recorded_failure(self):
+        record = run_smoke(access=fake_access(fail_at="reset_peak_counters"))
+        self.assertEqual(record["exit_status"], STATUS_FAILED)
+        self.assertEqual(record["failure"]["stage"], "peak-counter-reset")
+        self.assertEqual(validate_smoke_record(record), [])
+
     def test_first_failure_is_recorded_once_and_not_retried(self):
         access = fake_access(fail_at="load_model")
-        record = ReadinessSmoke(
-            authorization=authorization(),
-            plan=plan(),
-            access=access,
-            sampler=fake_sampler(clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:01Z")),
-            peak_probe_factory=fake_peak_probe,
-            clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:01Z"),
-        ).run()
+        record = run_smoke(access=access)
         self.assertEqual(record["exit_status"], STATUS_FAILED)
         self.assertEqual(record["failure"]["stage"], "model-load")
         self.assertEqual(record["failure"]["kind"], "RuntimeError")
@@ -267,6 +354,32 @@ class SmokeRunTests(unittest.TestCase):
         self.assertEqual(access.calls.count("load_model"), 1)
         self.assertFalse(record["retried"])
         self.assertEqual(validate_smoke_record(record), [])
+
+    def test_a_failing_pre_load_probe_is_a_recorded_failure_with_no_model_load(self):
+        access = fake_access()
+        record = run_smoke(
+            access=access, sampler=exploding_sampler(clock=clock_for("2026-09-21T03:00:00Z"))
+        )
+        self.assertEqual(record["exit_status"], STATUS_FAILED)
+        self.assertEqual(record["failure"]["kind"], "resource-probe-unavailable")
+        self.assertEqual(record["failure"]["stage"], "resource-sample-pre")
+        self.assertEqual(access.calls, ["reset_peak_counters"])  # nothing was loaded
+        self.assertEqual(validate_smoke_record(record), [])
+        self.assertEqual(record["resources"]["status"], STATUS_DEGRADED)
+        self.assertEqual(record["resources"]["peak_claims"]["vram_used_mib"]["value"], UNSET)
+        self.assertEqual(record["samples_pre"][0]["status"], "error")
+        self.assertEqual(record["samples_pre"][0]["value"], UNSET)
+        self.assertEqual(len(record["probe_errors"]), 1)
+
+    def test_a_failing_post_load_probe_is_recorded_and_keeps_the_generation_measurements(self):
+        sampler = fake_sampler(clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:01Z"), probe=flaky_probe())
+        record = run_smoke(access=fake_access(), sampler=sampler)
+        self.assertEqual(record["exit_status"], STATUS_FAILED)
+        self.assertEqual(record["failure"]["kind"], "resource-probe-unavailable")
+        self.assertEqual(record["failure"]["stage"], "resource-sample-post")
+        self.assertEqual(validate_smoke_record(record), [])
+        self.assertEqual(record["generation"]["output_token_count"], 3)
+        self.assertEqual(record["resources"]["status"], STATUS_DEGRADED)
 
     def test_readiness_check_failure_is_a_failed_run(self):
         access = fake_access(
@@ -278,28 +391,44 @@ class SmokeRunTests(unittest.TestCase):
                 "stop_reason": "eos",
             }
         )
-        record = ReadinessSmoke(
-            authorization=authorization(),
-            plan=plan(),
-            access=access,
-            sampler=fake_sampler(clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:01Z")),
-            peak_probe_factory=fake_peak_probe,
-            clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:02Z"),
-        ).run()
+        record = run_smoke(access=access)
         self.assertEqual(record["exit_status"], STATUS_FAILED)
         self.assertEqual(record["failure"]["kind"], "readiness-check-failed")
         self.assertIn("model_produced_output_tokens", record["failure"]["message"])
         self.assertIn("logits_all_finite", record["failure"]["message"])
 
-    def test_wall_clock_cap_breach_is_recorded(self):
-        stamps = [
+
+class WallClockTests(unittest.TestCase):
+    @unittest.skipUnless(hasattr(signal, "SIGALRM"), "SIGALRM is POSIX-only")
+    def test_the_guard_aborts_a_blocking_stage_at_the_cap(self):
+        started = time.monotonic()
+        with self.assertRaises(WallClockCapExceeded):
+            with wall_clock_guard(1) as label:
+                self.assertEqual(label, CAP_ENFORCEMENT_ARMED)
+                time.sleep(5)
+        self.assertLess(time.monotonic() - started, 3.0)
+
+    @unittest.skipUnless(hasattr(signal, "SIGALRM"), "SIGALRM is POSIX-only")
+    def test_an_armed_run_that_exceeds_the_cap_still_produces_a_record(self):
+        started = time.monotonic()
+        record = run_smoke(access=fake_access(block_seconds=4), wall_clock_cap_seconds=1)
+        elapsed = time.monotonic() - started
+        self.assertLess(elapsed, 3.5)  # aborted at the cap, not after the 4s stage returns
+        self.assertEqual(record["exit_status"], STATUS_FAILED)
+        self.assertEqual(record["failure"]["kind"], "wall-clock-cap-exceeded")
+        self.assertEqual(record["failure"]["stage"], "generate")
+        self.assertEqual(record["failure"]["enforcement"], CAP_ABORTED)
+        self.assertEqual(validate_smoke_record(record), [])
+
+    def test_a_cap_breach_detected_after_a_stage_returned_is_labelled_as_detection_only(self):
+        stamps = (
             "2026-09-21T03:00:00Z",
             "2026-09-21T03:00:00Z",
             "2026-09-21T03:00:05Z",
             "2026-09-21T03:25:00Z",
             "2026-09-21T03:25:01Z",
             "2026-09-21T03:25:02Z",
-        ]
+        )
         record = ReadinessSmoke(
             authorization=authorization(),
             plan=plan(wall_clock_cap_seconds=1200),
@@ -307,40 +436,51 @@ class SmokeRunTests(unittest.TestCase):
             sampler=fake_sampler(clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:25:02Z")),
             peak_probe_factory=fake_peak_probe,
             clock=clock_for(*stamps),
+            enforce_wall_clock_cap=False,
         ).run()
         self.assertEqual(record["exit_status"], STATUS_FAILED)
         self.assertEqual(record["failure"]["kind"], "wall-clock-cap-exceeded")
-        self.assertGreater(record["timing"]["wall_clock_seconds"], 1200)
+        self.assertIn("every stage had returned", record["failure"]["message"])
+        self.assertIn("not interrupted", record["failure"]["enforcement"])
+        self.assertEqual(record["timing"]["cap_enforcement"], CAP_ENFORCEMENT_DETECTION)
 
-    def test_sampler_failure_after_inference_is_recorded(self):
-        class ExplodingProbe:
-            name = "exploding"
-            command = "explode"
-            kind = SAMPLE
-            units = {"vram_used_mib": "MiB"}
+    def test_the_guard_is_not_armed_off_the_main_thread(self):
+        labels = []
 
-            def __init__(self):
-                self.calls = 0
+        def worker():
+            with wall_clock_guard(1) as label:
+                labels.append(label)
 
-            def read(self):
-                self.calls += 1
-                if self.calls > 1:
-                    raise RuntimeError("simulated sampling failure")
-                return {"vram_used_mib": 900.0}
+        thread = threading.Thread(target=worker)
+        thread.start()
+        thread.join()
+        self.assertEqual(labels, [CAP_ENFORCEMENT_DETECTION])
 
-        sampler = ResourceSampler(
-            [ExplodingProbe()], clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:01Z")
+
+class RunTargetTests(unittest.TestCase):
+    def test_accepts_the_layout_the_recipe_assigns(self):
+        self.assertEqual(
+            validate_run_target(run_id="r02-smoke-001", run_dir="results/R02/r02-smoke-001"), []
         )
-        record = ReadinessSmoke(
-            authorization=authorization(),
-            plan=plan(),
-            access=fake_access(),
-            sampler=sampler,
-            peak_probe_factory=fake_peak_probe,
-            clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:02Z"),
-        ).run()
-        self.assertEqual(record["exit_status"], STATUS_FAILED)
-        self.assertEqual(record["failure"]["stage"], "resource-sample")
+        self.assertEqual(
+            validate_run_target(
+                run_id="r02-smoke-017", run_dir="/abs/root/results/R02/r02-smoke-017"
+            ),
+            [],
+        )
+
+    def test_rejects_a_run_id_off_the_convention(self):
+        problems = validate_run_target(run_id="smoke-1", run_dir=None)
+        self.assertTrue(any("r02-smoke-" in problem for problem in problems))
+
+    def test_rejects_an_off_layout_run_dir(self):
+        problems = validate_run_target(run_id="r02-smoke-001", run_dir="/tmp/run")
+        self.assertTrue(any("results/R02/r02-smoke-001" in problem for problem in problems))
+
+    def test_run_dir_must_match_the_run_id(self):
+        self.assertTrue(
+            validate_run_target(run_id="r02-smoke-001", run_dir="results/R02/r02-smoke-002")
+        )
 
 
 class RecordShapeTests(unittest.TestCase):
@@ -351,7 +491,17 @@ class RecordShapeTests(unittest.TestCase):
     def test_validator_flags_raw_generated_text(self):
         record = _minimal_record()
         record["generation"]["output_text"] = "raw model output"
-        self.assertTrue(any("raw generated text" in error for error in validate_smoke_record(record)))
+        self.assertTrue(any("must not carry" in error for error in validate_smoke_record(record)))
+
+    def test_validator_flags_token_ids(self):
+        record = _minimal_record()
+        record["generation"]["output_token_ids"] = [1, 2, 3]
+        self.assertTrue(any("output_token_ids" in error for error in validate_smoke_record(record)))
+
+    def test_validator_flags_a_missing_owner(self):
+        record = _minimal_record()
+        record["owner"] = UNSET
+        self.assertTrue(any("owner" in error for error in validate_smoke_record(record)))
 
     def test_validator_flags_wrong_authorization_scope(self):
         record = _minimal_record()
@@ -363,16 +513,46 @@ class RecordShapeTests(unittest.TestCase):
         record["exit_status"] = STATUS_FAILED
         self.assertTrue(any("failure kind" in error for error in validate_smoke_record(record)))
 
-    def test_the_manifest_never_carries_the_prompt_or_output_text(self):
+    def test_validator_flags_a_successful_record_that_names_a_failure(self):
+        record = _minimal_record()
+        record["failure"]["kind"] = "readiness-check-failed"
+        self.assertTrue(
+            any("must not name a failure" in error for error in validate_smoke_record(record))
+        )
+
+    def test_validator_flags_a_resources_record_of_the_wrong_kind(self):
+        record = _minimal_record()
+        record["resources"] = {"kind": "something-else"}
+        self.assertTrue(any("resources" in error for error in validate_smoke_record(record)))
+
+    def test_every_failure_record_shape_validates(self):
+        scenarios = {
+            "pre-load probe": dict(sampler=exploding_sampler(clock=clock_for("2026-09-21T03:00:00Z"))),
+            "model load": dict(access=fake_access(fail_at="load_model")),
+            "peak reset": dict(access=fake_access(fail_at="reset_peak_counters")),
+            "post-load probe": dict(
+                sampler=fake_sampler(
+                    clock=clock_for("2026-09-21T03:00:00Z", "2026-09-21T03:00:01Z"), probe=flaky_probe()
+                )
+            ),
+        }
+        for name, kwargs in scenarios.items():
+            with self.subTest(scenario=name):
+                record = run_smoke(**kwargs)
+                self.assertEqual(record["exit_status"], STATUS_FAILED, name)
+                self.assertEqual(validate_smoke_record(record), [], name)
+
+    def test_the_record_carries_output_identity_not_output(self):
         record = _minimal_record()
         self.assertNotIn("output_text", record["generation"])
+        self.assertNotIn("first_output_token_id", record["generation"])
         self.assertEqual(validate_smoke_record(record), [])
 
 
 def _minimal_record():
     return {
         "kind": "r02-readiness-smoke",
-        "run_id": "r02-smoke-test-001",
+        "run_id": "r02-smoke-001",
         "owner": "eido",
         "authorization": authorization().to_record(),
         "model": {
@@ -387,28 +567,29 @@ def _minimal_record():
         "generation": {
             "output_text_sha256": "b" * 64,
             "output_token_count": 3,
-            "first_output_token_id": 1,
             "logits_all_finite": True,
             "stop_reason": "max_new_tokens",
         },
-        "resources": {"kind": "r02-resource-sampling"},
+        "resources": {"kind": RESOURCE_KIND},
         "started_at_utc": "2026-09-21T03:00:00Z",
         "finished_at_utc": "2026-09-21T03:00:05Z",
         "exit_status": STATUS_OK,
-        "failure": {"stage": UNSET, "kind": UNSET, "message": UNSET},
+        "failure": {"stage": UNSET, "kind": UNSET, "message": UNSET, "enforcement": UNSET},
     }
 
 
 class SmokeCliTests(unittest.TestCase):
     def test_cli_without_authorization_file_exits_closed_before_imports(self):
         with tempfile.TemporaryDirectory() as tmp:
-            run_dir = Path(tmp) / "results" / "R02" / "r02-smoke-test-001"
+            run_dir = Path(tmp) / "results" / "R02" / "r02-smoke-001"
             completed = subprocess.run(
                 [
                     sys.executable,
                     "scripts/r02_smoke.py",
                     "--run-id",
-                    "r02-smoke-test-001",
+                    "r02-smoke-001",
+                    "--owner",
+                    "eido",
                     "--run-dir",
                     str(run_dir),
                     "--authorization-file",
@@ -425,15 +606,16 @@ class SmokeCliTests(unittest.TestCase):
 
     def test_dry_run_reports_the_plan_and_writes_nothing(self):
         with tempfile.TemporaryDirectory() as tmp:
-            auth_path = Path(tmp) / "authorization.json"
-            auth_path.write_text(json.dumps(authorization().to_record()), encoding="utf-8")
-            run_dir = Path(tmp) / "run"
+            auth_path = write_authorization(Path(tmp) / "authorization.json")
+            run_dir = Path(tmp) / "results" / "R02" / "r02-smoke-001"
             completed = subprocess.run(
                 [
                     sys.executable,
                     "scripts/r02_smoke.py",
                     "--run-id",
-                    "r02-smoke-test-001",
+                    "r02-smoke-001",
+                    "--owner",
+                    "cassie",
                     "--run-dir",
                     str(run_dir),
                     "--authorization-file",
@@ -447,14 +629,76 @@ class SmokeCliTests(unittest.TestCase):
             self.assertEqual(completed.returncode, 0)
             payload = json.loads(completed.stdout)
             self.assertTrue(payload["dry_run"])
+            self.assertEqual(payload["plan"]["owner"], "cassie")
             self.assertEqual(payload["plan"]["cache_state"], UNSET)
             self.assertEqual(payload["plan"]["repo_id"], "Qwen/Qwen2.5-1.5B")
+            self.assertIn("wall_clock_cap", payload)
             self.assertFalse(run_dir.exists())
+
+    def test_an_off_layout_run_dir_is_rejected_before_anything_runs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            auth_path = write_authorization(Path(tmp) / "authorization.json")
+            run_dir = Path(tmp) / "somewhere-else"
+            completed = subprocess.run(
+                [
+                    sys.executable,
+                    "scripts/r02_smoke.py",
+                    "--run-id",
+                    "r02-smoke-001",
+                    "--owner",
+                    "eido",
+                    "--run-dir",
+                    str(run_dir),
+                    "--authorization-file",
+                    str(auth_path),
+                ],
+                cwd=ROOT,
+                capture_output=True,
+                text=True,
+            )
+            self.assertEqual(completed.returncode, 2)
+            self.assertIn("run target rejected", completed.stderr)
+            self.assertFalse(run_dir.exists())
+
+    def test_a_probe_failure_writes_a_validated_failure_manifest(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            auth_path = write_authorization(Path(tmp) / "authorization.json")
+            run_dir = Path(tmp) / "results" / "R02" / "r02-smoke-001"
+            with redirect_stderr(io.StringIO()):
+                code = main(
+                    [
+                        "--run-id",
+                        "r02-smoke-001",
+                        "--owner",
+                        "vesper",
+                        "--run-dir",
+                        str(run_dir),
+                        "--authorization-file",
+                        str(auth_path),
+                        "--no-wall-clock-guard",
+                    ],
+                    sampler_factory=lambda: exploding_sampler(
+                        clock=clock_for("2026-09-21T03:00:00Z"),
+                        message="nvidia-smi failed: token=abc123def",
+                    ),
+                    access_factory=fake_access,
+                )
+            self.assertEqual(code, 1)
+            record = json.loads((run_dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertTrue((run_dir / "resource-samples.json").is_file())
+            self.assertEqual(record["exit_status"], STATUS_FAILED)
+            self.assertEqual(record["failure"]["kind"], "resource-probe-unavailable")
+            self.assertEqual(record["owner"], "vesper")  # from the plan, not a constant
+            self.assertEqual(validate_smoke_record(record), [])
+            self.assertNotIn("abc123def", record["failure"]["message"])
+            self.assertIn("REDACTED", record["failure"]["message"])
 
     def test_main_returns_gate_closed_in_process(self):
         errors = io.StringIO()
         with redirect_stderr(errors):
-            code = main(["--run-id", "r02-smoke-test-001", "--authorization-file", "/absent.json"])
+            code = main(
+                ["--run-id", "r02-smoke-001", "--owner", "eido", "--authorization-file", "/absent.json"]
+            )
         self.assertEqual(code, 2)
         self.assertIn("gate closed", errors.getvalue())
 

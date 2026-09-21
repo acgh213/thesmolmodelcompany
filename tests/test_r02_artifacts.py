@@ -16,7 +16,11 @@ from pathlib import Path
 from scripts.r02_artifacts import (
     DECLARED_FILES,
     KIND_MANIFEST,
+    PINNED_FIELDS,
+    PRECISION,
+    REPO_ID,
     REVISION,
+    SOURCE,
     ArtifactError,
     HfHttpTransport,
     build_parser,
@@ -93,6 +97,23 @@ class DeclaredManifestTests(unittest.TestCase):
         manifest = declared_manifest()
         manifest["files"][0]["expected_sha256"] = "not-a-hash"
         self.assertTrue(any("SHA-256" in err for err in validate_manifest(manifest)))
+
+    def test_validation_flags_every_unpinned_identity_field(self):
+        cases = {
+            "repo_id": "someone-else/TinyModel",
+            "source": "a-mirror",
+            "precision": "float32",
+            "requested_revision": "b" * 40,
+        }
+        for field_name, value in cases.items():
+            with self.subTest(field=field_name):
+                manifest = declared_manifest()
+                manifest[field_name] = value
+                errors = validate_manifest(manifest)
+                self.assertTrue(
+                    any("pinned value" in error for error in errors),
+                    f"{field_name} passed the pin check with {value!r}",
+                )
 
 
 class FetchTests(unittest.TestCase):
@@ -180,6 +201,28 @@ class FetchTests(unittest.TestCase):
             )
         self.assertEqual(report["status"], "failed")
         self.assertEqual(transport.downloads, [])
+
+    def test_a_manifest_for_another_repository_stops_before_the_transport_is_called(self):
+        transport = FakeTransport()
+        forged = declared_manifest()
+        forged["repo_id"] = "someone-else/TinyModel"
+        with tempfile.TemporaryDirectory() as tmp:
+            report = fetch_and_hash(transport=transport, destination=tmp, manifest=forged, env={})
+        self.assertEqual(report["status"], "failed")
+        self.assertIn("repo_id", report["error"])
+        self.assertEqual(transport.downloads, [])
+        self.assertEqual(transport.revisions_requested, [])
+
+    def test_every_pinned_identity_field_is_checked_against_declared_module_pins(self):
+        self.assertEqual(
+            PINNED_FIELDS,
+            {
+                "repo_id": REPO_ID,
+                "source": SOURCE,
+                "precision": PRECISION,
+                "requested_revision": REVISION,
+            },
+        )
 
 
 class TransportBoundaryTests(unittest.TestCase):
