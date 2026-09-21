@@ -1,0 +1,83 @@
+{
+  "all_match": true,
+  "cache_root": "/home/cassie/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B/snapshots/8faed761d45a263340a0528343f099c05c9a4323",
+  "checked_at_utc": "2026-09-21T03:11:41Z",
+  "files": [
+    {
+      "cache_bytes": 684,
+      "cache_sha256": "0e8c8aa86468aba09c9d32157ff4bc2301c7e6c50e4398960425b2ea71e66f77",
+      "manifest_bytes": 684,
+      "manifest_sha256": "0e8c8aa86468aba09c9d32157ff4bc2301c7e6c50e4398960425b2ea71e66f77",
+      "match": true,
+      "path": "config.json",
+      "present": true,
+      "resolved_target": "/home/cassie/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B/blobs/169d606d5cf502a5628a52381586679a6d0caaab"
+    },
+    {
+      "cache_bytes": 138,
+      "cache_sha256": "8c970692323e3ea0e9b8b0a4dca79388d31226e41f83c9fd6014804280ebf6e8",
+      "manifest_bytes": 138,
+      "manifest_sha256": "8c970692323e3ea0e9b8b0a4dca79388d31226e41f83c9fd6014804280ebf6e8",
+      "match": true,
+      "path": "generation_config.json",
+      "present": true,
+      "resolved_target": "/home/cassie/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B/blobs/cbbb3133034e192527e5321b4c679154e4819ab8"
+    },
+    {
+      "cache_bytes": 3087467144,
+      "cache_sha256": "a961db72e75d52b18e6b0c9d379e51a26973b233385e0e127fdda7d648aec796",
+      "manifest_bytes": 3087467144,
+      "manifest_sha256": "a961db72e75d52b18e6b0c9d379e51a26973b233385e0e127fdda7d648aec796",
+      "match": true,
+      "path": "model.safetensors",
+      "present": true,
+      "resolved_target": "/home/cassie/.cache/huggingface/hub/blobs/8b/8bff19ad30d83352b41b698b3a39904f966f62029771306387e57cb4b2664073"
+    },
+    {
+      "cache_bytes": 7031645,
+      "cache_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+      "manifest_bytes": 7031645,
+      "manifest_sha256": "c0382117ea329cdf097041132f6d735924b697924d6f6fc3945713e96ce87539",
+      "match": true,
+      "path": "tokenizer.json",
+      "present": true,
+      "resolved_target": "/home/cassie/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B/blobs/443909a61d429dff23010e5bddd28ff530edda00"
+    },
+    {
+      "cache_bytes": 7228,
+      "cache_sha256": "c91efca15ceff6e9ee9424db58a6f59cd41294e550a86cbd07e3c1fb500b34f9",
+      "manifest_bytes": 7228,
+      "manifest_sha256": "c91efca15ceff6e9ee9424db58a6f59cd41294e550a86cbd07e3c1fb500b34f9",
+      "match": true,
+      "path": "tokenizer_config.json",
+      "present": true,
+      "resolved_target": "/home/cassie/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B/blobs/ba7e4c5637b9732dadcd66286ce48334e8b31e9e"
+    },
+    {
+      "cache_bytes": 2776833,
+      "cache_sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+      "manifest_bytes": 2776833,
+      "manifest_sha256": "ca10d7e9fb3ed18575dd1e277a2579c16d108e32f27439684afa0e10b1440910",
+      "match": true,
+      "path": "vocab.json",
+      "present": true,
+      "resolved_target": "/home/cassie/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B/blobs/4783fe10ac3adce15ac8f358ef5462739852c569"
+    },
+    {
+      "cache_bytes": 1671839,
+      "cache_sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "manifest_bytes": 1671839,
+      "manifest_sha256": "599bab54075088774b1733fde865d5bd747cbcc7a547c5bc12610e874e26f5e3",
+      "match": true,
+      "path": "merges.txt",
+      "present": true,
+      "resolved_target": "/home/cassie/.cache/huggingface/hub/models--Qwen--Qwen2.5-1.5B/blobs/20024bfe7c83998e9aeaf98a0cd6a2ce6306c2f0"
+    }
+  ],
+  "kind": "r02-hf-cache-crosscheck",
+  "method": "SHA-256 recomputed over each snapshot file (through its blob symlink) and compared with artifact-manifest.json",
+  "mismatches": [],
+  "repo_id": "Qwen/Qwen2.5-1.5B",
+  "revision": "8faed761d45a263340a0528343f099c05c9a4323",
+  "run_id": "r02-smoke-001"
+}

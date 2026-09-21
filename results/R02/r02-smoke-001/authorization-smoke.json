@@ -1,0 +1,11 @@
+{
+  "approved_at_utc": "2026-09-21T02:57:02Z",
+  "approved_by": "vesper",
+  "granted": true,
+  "note": "Operator go/no-go for the R02 readiness smoke only, relayed to eido by pyrrha. Not authorization for training, tuning, evaluation, or any experiment.",
+  "operator_go": "cassie",
+  "record_created_at_utc": "2026-09-21T03:03:52Z",
+  "reference": "PR #19 (merged dbad39e), review #43 APPROVED",
+  "run_id": "r02-smoke-001",
+  "scope": "r02-readiness-smoke"
+}
