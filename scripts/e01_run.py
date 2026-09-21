@@ -14,6 +14,11 @@ Boundaries this module holds:
   before anything else, so an ungated invocation raises before the deferred access
   layer is constructed, before ``torch`` or ``transformers`` is imported, and
   before any CUDA call.
+* **The frozen prompt is bound, not just cited.** After the manifest is generated
+  and before the preflight or any load, the runner re-renders the whole prompt set
+  and compares its digest with ``plan.artifacts.prompt_sha256``. A drifted renderer
+  stops the run while nothing has been loaded, because a recorded digest that is
+  never recomputed is a label rather than a binding.
 * **The preflight runs before the model.** Candidate and reference files are
   generated from the frozen protocol and then checked by ``e01_preflight``, which
   verifies the gate, the run target, the pinned identity, the freeze state and
@@ -79,7 +84,18 @@ try:  # bare script (sys.path[0] is scripts/) or scripts/ already on sys.path
         validate_run_target,
     )
     from e01_identity import PinError, load_pin, load_plan
-    from e01_prompt import PROMPT_RENDERER_REVISION, prompt_sha256, render_prompt
+    from e01_prompt import (
+        INSTRUCTION,
+        OUTPUT_HEADER,
+        PROMPT_FIELDS,
+        PROMPT_RENDERER_REVISION,
+        TASK_HEADER,
+        instruction_sha256,
+        payloads_from_manifest,
+        prompt_set_sha256,
+        prompt_sha256,
+        render_prompt,
+    )
     from e01_records import GENERATOR_REVISION, _write_jsonl, build as build_episodes
     from e01_score import SCORER_REVISION, score as score_predictions
     from r02_gate import EXIT_GATE_CLOSED, EXIT_OK, EXIT_STEP_FAILED, is_unset, redact_secrets
@@ -94,7 +110,18 @@ except ModuleNotFoundError:  # imported as scripts.<module> from the repository 
         validate_run_target,
     )
     from scripts.e01_identity import PinError, load_pin, load_plan
-    from scripts.e01_prompt import PROMPT_RENDERER_REVISION, prompt_sha256, render_prompt
+    from scripts.e01_prompt import (
+        INSTRUCTION,
+        OUTPUT_HEADER,
+        PROMPT_FIELDS,
+        PROMPT_RENDERER_REVISION,
+        TASK_HEADER,
+        instruction_sha256,
+        payloads_from_manifest,
+        prompt_set_sha256,
+        prompt_sha256,
+        render_prompt,
+    )
     from scripts.e01_records import GENERATOR_REVISION, _write_jsonl, build as build_episodes
     from scripts.e01_score import SCORER_REVISION, score as score_predictions
     from scripts.r02_gate import (
@@ -232,7 +259,10 @@ class RunPlan:
     authorization_file: str
     episode_time_cap_seconds: int
     code_commit: str = UNSET
-    stop_on_malformed_output: bool = True
+    # Defaults to scoring rather than stopping: the frozen protocol's error
+    # classes are the more specific instrument, and a stopped run cannot reach
+    # them. The plan sets this explicitly; see configs/e01-protocol.md, erratum.
+    stop_on_malformed_output: bool = False
 
     def to_record(self) -> dict[str, Any]:
         return {
@@ -294,11 +324,18 @@ def deferred_access() -> ModelAccess:
 
     def describe_device(plan: RunPlan) -> Mapping[str, Any]:
         import torch  # noqa: PLC0415 - deferred behind the gate
+        import transformers  # noqa: PLC0415 - deferred behind the gate
 
         return {
             "device": plan.device,
             "device_name": torch.cuda.get_device_name(0),
             "cuda_available": torch.cuda.is_available(),
+            # docs/coordination.md requires environment identity in the manifest,
+            # and the deferred model path passes a version-dependent ``dtype=``.
+            "library_versions": {
+                "torch": getattr(torch, "__version__", UNSET),
+                "transformers": getattr(transformers, "__version__", UNSET),
+            },
         }
 
     def generate(plan: RunPlan, model: Any, tokenizer: Any, prompt: str) -> Mapping[str, Any]:
@@ -479,6 +516,11 @@ class E01Run:
         self.clock = clock
         self.preflight_runner = preflight_runner
         self.protocol = dict(protocol or {})
+        self._prompt_binding: dict[str, Any] = {
+            "prompt_sha256": UNSET,
+            "prompt_sha256_recomputed": UNSET,
+            "instruction_sha256": UNSET,
+        }
         self.record: dict[str, Any] | None = None
 
     # ---- inputs and protocol checks -----------------------------------------
@@ -545,6 +587,35 @@ class E01Run:
             for name, path in paths.items()
         }
 
+    def _verify_prompt_binding(
+        self, manifest_rows: Sequence[Mapping[str, Any]], plan_doc: Mapping[str, Any]
+    ) -> str:
+        """Bind the frozen prompt-set digest to the prompts this run will render.
+
+        Recomputing here is the difference between a label and a binding. A plan
+        that records a digest without comparing it still passes every other check
+        when the renderer drifts, because ``prompt_renderer_revision`` is a string
+        that a drift leaves alone. This runs after the manifest is generated and
+        before the preflight and before any load, so a drifted renderer stops the
+        run while nothing has been loaded or scored.
+        """
+        expected = (plan_doc.get("artifacts") or {}).get("prompt_sha256")
+        recomputed = prompt_set_sha256(payloads_from_manifest(manifest_rows))
+        self._prompt_binding = {
+            "prompt_sha256": expected if isinstance(expected, str) else UNSET,
+            "prompt_sha256_recomputed": recomputed,
+            "instruction_sha256": instruction_sha256(),
+        }
+        if is_unset(expected) or not isinstance(expected, str):
+            raise RunStopped("protocol-mismatch", "the execution plan freezes no prompt hash")
+        if recomputed != expected:
+            raise RunStopped(
+                "protocol-mismatch",
+                f"the rendered prompt set digests to {recomputed}, but the plan freezes "
+                f"{expected}: the renderer has drifted from the frozen prompt",
+            )
+        return recomputed
+
     def _invoke_preflight(self, inputs: Mapping[str, Any]) -> dict[str, Any]:
         argv = [
             "--run-id", self.plan.run_id,
@@ -596,7 +667,30 @@ class E01Run:
 
     # ---- records -------------------------------------------------------------
 
-    def _base_record(self, *, started_at: str) -> dict[str, Any]:
+    def _frozen_block(self, inputs: Mapping[str, Any]) -> dict[str, Any]:
+        """The digests this run is bound to, recorded for a failed run as well."""
+        return {
+            "prompt_renderer_revision": PROMPT_RENDERER_REVISION,
+            "prompt_sha256": self._prompt_binding.get("prompt_sha256", UNSET),
+            "prompt_sha256_recomputed": self._prompt_binding.get("prompt_sha256_recomputed", UNSET),
+            "instruction_sha256": self._prompt_binding.get("instruction_sha256", UNSET),
+            "episode_manifest_sha256": (inputs.get("episode_manifest") or {}).get("sha256", UNSET),
+            "reference_answers_sha256": (inputs.get("reference_answers") or {}).get("sha256", UNSET),
+        }
+
+    def _frozen_prompt_block(self) -> dict[str, Any]:
+        """The prompt itself, so a record states the condition rather than citing it."""
+        return {
+            "instruction": INSTRUCTION,
+            "instruction_sha256": instruction_sha256(),
+            "task_header": TASK_HEADER,
+            "output_header": OUTPUT_HEADER,
+            "prompt_fields": list(PROMPT_FIELDS),
+        }
+
+    def _base_record(
+        self, *, started_at: str, inputs: Mapping[str, Any] | None = None
+    ) -> dict[str, Any]:
         return {
             "experiment": EXPERIMENT_ID,
             "run_id": self.plan.run_id,
@@ -616,6 +710,8 @@ class E01Run:
             "authorization": dict(self.authorization.to_record()),
             "plan": self.plan.to_record(),
             "not_established": list(NOT_ESTABLISHED),
+            "frozen": self._frozen_block(inputs or {}),
+            "frozen_prompt": self._frozen_prompt_block(),
         }
 
     def _resource_summary(self, sampler: ResourceSampler, started_at: str) -> Any:
@@ -640,7 +736,7 @@ class E01Run:
         finished_at = self.clock()
         predictions_path = run_dir / PREDICTIONS_DIRNAME / PREDICTIONS_FILENAME
         self._write_predictions(predictions_path, predictions)
-        record = self._base_record(started_at=started_at)
+        record = self._base_record(started_at=started_at, inputs=inputs)
         record.update(
             {
                 "kind": KIND_FAILURE,
@@ -703,6 +799,11 @@ class E01Run:
             metadata_rows = _read_jsonl(inputs["episode_metadata"]["path"])
             split_by_id = {row["episode_id"]: row.get("split", UNSET) for row in metadata_rows}
 
+            # Bind the frozen prompt digest here: after the manifest exists, before
+            # the preflight and before any model or GPU access.
+            stage = "prompt-binding"
+            self._verify_prompt_binding(manifest_rows, plan_doc)
+
             stage = "preflight"
             preflight = self._invoke_preflight(inputs)
 
@@ -722,10 +823,6 @@ class E01Run:
             device = dict(access.describe_device(self.plan))
 
             sampler.add_probe(self.peak_probe_factory())
-
-            frozen_prompt_sha = (plan_doc.get("artifacts") or {}).get("prompt_sha256")
-            if is_unset(frozen_prompt_sha):
-                raise RunStopped("protocol-mismatch", "the execution plan freezes no prompt hash")
 
             stage = "generate"
             for row in manifest_rows:
@@ -779,7 +876,7 @@ class E01Run:
                 encoding="utf-8",
             )
 
-            record = self._base_record(started_at=started_at)
+            record = self._base_record(started_at=started_at, inputs=inputs)
             record.update(
                 {
                     "kind": KIND_RUN,
@@ -792,6 +889,7 @@ class E01Run:
                         "precision": self.plan.precision,
                         "device": self.plan.device,
                         "device_reported": device.get("device_name", UNSET),
+                        "library_versions": device.get("library_versions", UNSET),
                         "identity_source": self.plan.r02_record,
                     },
                     "decoding": {
@@ -800,11 +898,6 @@ class E01Run:
                         "temperature_and_top_p": "not passed: inert under greedy decoding",
                         "attempts_per_episode": ATTEMPTS_PER_EPISODE,
                         "retries": 0,
-                    },
-                    "frozen": {
-                        "episode_manifest_sha256": inputs["episode_manifest"]["sha256"],
-                        "reference_answers_sha256": inputs["reference_answers"]["sha256"],
-                        "prompt_sha256": frozen_prompt_sha,
                     },
                     "inputs": dict(inputs),
                     "preflight": dict(preflight),
@@ -927,7 +1020,7 @@ def main(argv: Sequence[str] | None = None) -> int:
             or 0,
             code_commit=args.code_commit or git_commit(),
             stop_on_malformed_output=bool(
-                (plan_doc.get("runner") or {}).get("stop_on_malformed_output", True)
+                (plan_doc.get("runner") or {}).get("stop_on_malformed_output", False)
             ),
         ),
         protocol=protocol,

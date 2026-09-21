@@ -8,14 +8,15 @@ episode" but froze no prompt. This module is that prompt, frozen as
 ``e01-prompt-v1``, and it is the *mechanical* half only: the task family, the
 scorer and the condition belong to Research B.
 
-The rendered prompt is exactly three parts, concatenated with no other
-characters:
+The rendered prompt is exactly four parts, concatenated with no other characters
+-- the same four the protocol document lists:
 
 1. ``INSTRUCTION`` -- one literal string, so no concatenation can drift from the
    reviewed text;
-2. ``"\\n\\nTASK JSON:\\n"`` followed by the canonical compact JSON of exactly
-   ``family``, ``input`` and ``query`` from the candidate payload;
-3. ``"\\n\\nOUTPUT JSON:\\n"``.
+2. ``TASK_HEADER`` -- ``"\\n\\nTASK JSON:\\n"``;
+3. the canonical compact JSON of exactly ``family``, ``input`` and ``query`` from
+   the candidate payload;
+4. ``OUTPUT_HEADER`` -- ``"\\n\\nOUTPUT JSON:\\n"``.
 
 ``declared_budget`` is deliberately not rendered. It is a control record for the
 run manifest, not task content, and putting it in the prompt would hand the model

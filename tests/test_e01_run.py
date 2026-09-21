@@ -19,6 +19,8 @@ from scripts.build_results_ledger import REQUIRED, parse_front_matter
 from scripts.e01_gate import EXPERIMENT_ID, SCOPE_E01_EXECUTION, GateClosed
 from scripts.e01_identity import PinError
 from scripts.e01_prompt import PROMPT_RENDERER_REVISION
+from scripts.e01_prompt import payloads_from_manifest, prompt_set_sha256
+from scripts.e01_records import build as build_episodes
 from scripts.e01_records import GENERATOR_REVISION
 from scripts.e01_run import (
     CAP_NOT_ARMED,
@@ -54,6 +56,29 @@ PROTOCOL = {
 
 EPISODE_COUNT = 3
 
+REAL_PLAN = ROOT / "configs" / "e01-execution-plan.json"
+REAL_PROTOCOL = json.loads((ROOT / "configs" / "e01-protocol.json").read_text(encoding="utf-8"))
+
+# The digests the frozen plan commits to, repeated as literals.
+FROZEN_PROMPT_SHA256 = "32f7465f8bad3107a9183dabe7f350ba05d696e2eec54837399cb548e22db05a"
+FROZEN_INSTRUCTION_SHA256 = "249c60b70ec3ce4f7c5afa2e75db642c41317fa4c3fd39a64024f8c8078635a8"
+FROZEN_EPISODE_MANIFEST_SHA256 = "ecb832a72bb39c87ba9821c07a31e538d735632acd0cf0b01f39eebc7ac14b7c"
+FROZEN_REFERENCE_ANSWERS_SHA256 = "53f235d147f2da4d922448c44904a3fbcd2916d7ee6f034d35179ec34e144562"
+
+# The fixture plan must carry the digest its own fixture protocol renders to,
+# or the binding correctly refuses it.
+FIXTURE_PROMPT_SHA256 = prompt_set_sha256(
+    payloads_from_manifest(
+        build_episodes(
+            {
+                "development": list(PROTOCOL["task"]["development_seeds"]),
+                "final": list(PROTOCOL["task"]["final_seeds"]),
+            },
+            PROTOCOL["task"]["record_count"],
+        )[0]
+    )
+)
+
 # Distinguishes "caller did not say" from "caller passed None on purpose".
 DEFAULT_AUTHORIZATION = object()
 
@@ -75,7 +100,7 @@ def fixture_plan(directory, *, overrides=None):
             "runner_revision": RUNNER_REVISION,
             "episode_manifest_sha256": "0" * 64,
             "reference_answers_sha256": "1" * 64,
-            "prompt_sha256": "2" * 64,
+            "prompt_sha256": FIXTURE_PROMPT_SHA256,
         },
     }
     if overrides:
@@ -195,7 +220,7 @@ class RunTestCase(unittest.TestCase):
             authorization_file=str(self.tmp / "auth.json"),
             episode_time_cap_seconds=1200,
             code_commit="fixture",
-            stop_on_malformed_output=overrides.pop("stop_on_malformed_output", True),
+            stop_on_malformed_output=overrides.pop("stop_on_malformed_output", False),
         )
 
     def build(
@@ -205,11 +230,16 @@ class RunTestCase(unittest.TestCase):
         preflight=None,
         authorization_record=DEFAULT_AUTHORIZATION,
         sampler=None,
+        protocol=None,
+        plan_path=None,
         **plan_overrides,
     ):
         access, calls, loaded = access if isinstance(access, tuple) else make_access()
         self.calls, self.loaded = calls, loaded
         self.sampler = sampler or FakeSampler()
+        if plan_path is not None:
+            self.plan_path = plan_path
+        self.preflight_argv = None
         run = E01Run(
             authorization=(
                 authorization()
@@ -221,12 +251,9 @@ class RunTestCase(unittest.TestCase):
             sampler=self.sampler,
             peak_probe_factory=lambda: "fake-probe",
             clock=lambda: "2026-09-21T05:00:00Z",
-            preflight_runner=preflight or (lambda argv: 0),
-            protocol=PROTOCOL,
+            preflight_runner=self.capture_preflight if preflight is None else preflight,
+            protocol=PROTOCOL if protocol is None else protocol,
         )
-        self.preflight_argv = None
-        if preflight is None:
-            run.preflight_runner = self.capture_preflight
         return run
 
     def capture_preflight(self, argv):
@@ -308,7 +335,7 @@ class HappyPathTests(RunTestCase):
         self.assertEqual(record["scorer_revision"], SCORER_REVISION)
         self.assertEqual(record["protocol_version"], "e01-records-v1")
         self.assertEqual(record["claim_tier"], "development-signal")
-        self.assertEqual(record["frozen"]["prompt_sha256"], "2" * 64)
+        self.assertEqual(record["frozen"]["prompt_sha256"], FIXTURE_PROMPT_SHA256)
         self.assertEqual(record["model"]["repo_id"], "Qwen/Qwen2.5-1.5B")
         self.assertEqual(record["model"]["identity_source"], str(PIN_DIR))
 
@@ -376,8 +403,10 @@ class FailurePathTests(RunTestCase):
         self.assertFalse((self.run_dir_path() / "report.md").exists())
 
     def test_malformed_output_stops_the_run_and_preserves_what_was_produced(self):
+        # The stopped behaviour is no longer the default; it stays covered as a
+        # plan-selectable rule.
         access, calls, _ = make_access(mode="malformed")
-        run = self.build(access=(access, calls, make_access()[2]))
+        run = self.build(access=(access, calls, make_access()[2]), stop_on_malformed_output=True)
         record = run.run()
         self.assertEqual(record["exit_status"], "failed")
         self.assertEqual(record["failure"]["kind"], "malformed-output")
@@ -420,6 +449,127 @@ class FailurePathTests(RunTestCase):
         self.assertEqual(manifest["exit_status"], "failed")
         self.assertEqual(manifest["run_id"], RUN_ID)
         self.assertEqual(manifest["attempts_per_episode"], 1)
+
+
+class PromptBindingTests(RunTestCase):
+    """The frozen prompt digest must be compared, not merely recorded (review #53)."""
+
+    def test_the_success_record_states_the_prompt_and_both_digests(self):
+        run = self.build(protocol=REAL_PROTOCOL, plan_path=REAL_PLAN)
+        record = run.run()
+        self.assertEqual(record["exit_status"], "ok")
+        self.assertEqual(record["frozen"]["prompt_sha256"], FROZEN_PROMPT_SHA256)
+        self.assertEqual(record["frozen"]["prompt_sha256_recomputed"], FROZEN_PROMPT_SHA256)
+        self.assertEqual(record["frozen"]["instruction_sha256"], FROZEN_INSTRUCTION_SHA256)
+        self.assertEqual(record["frozen_prompt"]["instruction_sha256"], FROZEN_INSTRUCTION_SHA256)
+        self.assertEqual(record["frozen_prompt"]["prompt_fields"], ["family", "input", "query"])
+        self.assertTrue(
+            record["frozen_prompt"]["instruction"].startswith(
+                "You are a deterministic JSON transformation executor."
+            )
+        )
+
+    def test_the_frozen_input_digests_are_recorded(self):
+        run = self.build(protocol=REAL_PROTOCOL, plan_path=REAL_PLAN)
+        record = run.run()
+        self.assertEqual(
+            record["frozen"]["episode_manifest_sha256"], FROZEN_EPISODE_MANIFEST_SHA256
+        )
+        self.assertEqual(
+            record["frozen"]["reference_answers_sha256"], FROZEN_REFERENCE_ANSWERS_SHA256
+        )
+
+    def test_a_drifted_instruction_is_refused_before_the_preflight_and_any_load(self):
+        import scripts.e01_prompt as e01_prompt
+
+        original = e01_prompt.INSTRUCTION
+        access, calls, loaded = make_access()
+        try:
+            e01_prompt.INSTRUCTION = original + " "
+            run = self.build(
+                access=(access, calls, loaded), protocol=REAL_PROTOCOL, plan_path=REAL_PLAN
+            )
+            record = run.run()
+        finally:
+            e01_prompt.INSTRUCTION = original
+
+        self.assertEqual(record["exit_status"], "failed")
+        self.assertEqual(record["failure"]["kind"], "protocol-mismatch")
+        self.assertEqual(record["failure"]["stage"], "prompt-binding")
+        # Nothing was preflighted, loaded or generated.
+        self.assertIsNone(self.preflight_argv)
+        self.assertEqual(loaded, {"tokenizer": 0, "model": 0})
+        self.assertEqual(calls, [])
+        self.assertFalse((self.run_dir_path() / "report.md").exists())
+
+    def test_the_failed_binding_record_still_states_both_digests(self):
+        import scripts.e01_prompt as e01_prompt
+
+        original = e01_prompt.INSTRUCTION
+        access, calls, _ = make_access()
+        try:
+            e01_prompt.INSTRUCTION = original + " "
+            run = self.build(
+                access=(access, calls, make_access()[2]), protocol=REAL_PROTOCOL, plan_path=REAL_PLAN
+            )
+            record = run.run()
+        finally:
+            e01_prompt.INSTRUCTION = original
+
+        self.assertEqual(record["frozen"]["prompt_sha256"], FROZEN_PROMPT_SHA256)
+        self.assertNotEqual(record["frozen"]["prompt_sha256_recomputed"], FROZEN_PROMPT_SHA256)
+        self.assertNotEqual(record["frozen"]["instruction_sha256"], FROZEN_INSTRUCTION_SHA256)
+        self.assertEqual(record["frozen_prompt"]["prompt_fields"], ["family", "input", "query"])
+        self.assertIn("drifted", record["failure"]["message"])
+
+    def test_a_renamed_renderer_revision_does_not_hide_a_drift(self):
+        # prompt_renderer_revision is a string a drift leaves alone, which is why
+        # the digest has to be compared rather than trusted.
+        import scripts.e01_prompt as e01_prompt
+
+        original = e01_prompt.INSTRUCTION
+        access, calls, _ = make_access()
+        try:
+            e01_prompt.INSTRUCTION = original + " "
+            run = self.build(
+                access=(access, calls, make_access()[2]), protocol=REAL_PROTOCOL, plan_path=REAL_PLAN
+            )
+            record = run.run()
+        finally:
+            e01_prompt.INSTRUCTION = original
+        self.assertEqual(record["prompt_renderer_revision"], "e01-prompt-v1")
+        self.assertEqual(record["failure"]["kind"], "protocol-mismatch")
+
+
+class MalformedScoringTests(RunTestCase):
+    """Malformed output is scored, not fatal (review #53)."""
+
+    def test_all_32_generations_complete_and_every_malformed_row_is_scored(self):
+        access, calls, loaded = make_access(mode="malformed")
+        run = self.build(
+            access=(access, calls, loaded), protocol=REAL_PROTOCOL, plan_path=REAL_PLAN
+        )
+        record = run.run()
+        self.assertEqual(record["exit_status"], "ok")
+        self.assertEqual(len(calls), 32)
+        self.assertEqual(record["scoring"]["total"], 32)
+        self.assertEqual(record["scoring"]["correct"], 0)
+        self.assertEqual(record["scoring"]["error_counts"].get("invalid_json"), 32)
+        self.assertEqual(loaded, {"tokenizer": 1, "model": 1})
+
+    def test_the_evidence_package_is_written_for_a_completed_malformed_run(self):
+        access, calls, _ = make_access(mode="malformed")
+        run = self.build(
+            access=(access, calls, make_access()[2]), protocol=REAL_PROTOCOL, plan_path=REAL_PLAN
+        )
+        run.run()
+        target = self.run_dir_path()
+        self.assertTrue((target / "report.md").is_file())
+        errors = json.loads((target / "errors.json").read_text(encoding="utf-8"))
+        self.assertEqual(len(errors["episodes"]), 32)
+        self.assertEqual({row["error_class"] for row in errors["episodes"]}, {"invalid_json"})
+        fields = parse_front_matter((target / "report.md").read_text(encoding="utf-8"))
+        self.assertEqual([name for name in REQUIRED if not fields.get(name)], [])
 
 
 class BoundaryTests(RunTestCase):
